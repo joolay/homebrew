@@ -26,3 +26,21 @@
     window.AbortController.prototype.abort = function () { this.signal.aborted = true; };
   }
 })();
+
+/* Resilient fetch for the streaming server: retries so a slow first connection (mDNS lookup,
+   server waking up) doesn't show "server offline". urlFn is re-evaluated each try so a changed server URL is honoured. */
+window.__retryFetch = function (urlFn, opts, tries, delay) {
+  tries = tries || 5; delay = delay || 1200;
+  return new Promise(function (resolve, reject) {
+    (function attempt(n) {
+      fetch(urlFn(), opts).then(function (r) {
+        if (r.status >= 500 && n < tries) return setTimeout(function () { attempt(n + 1); }, delay);
+        resolve(r);
+      }, function (e) {
+        if (n < tries) setTimeout(function () { attempt(n + 1); }, delay); else reject(e);
+      });
+    })(1);
+  });
+};
+/* Warm up the connection to the server at launch. */
+if (window.fetch && window.STREMIO_SERVER_URL) { try { fetch(window.STREMIO_SERVER_URL + '/settings').catch(function () {}); } catch (e) {} }

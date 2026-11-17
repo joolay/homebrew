@@ -1,16 +1,16 @@
 {
   "id": "io.stremio.legacy.tv",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "web",
   "title": "Stremio (Legacy 4.4)",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app/icon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.legacy.tv_1.0.3_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.legacy.tv_1.0.4_all.ipk",
   "ipkHash": {
-    "sha256": "c6d726c648af6c1bc4242633fda1e830fee90e417c59faa8dab9db670fdf4816"
+    "sha256": "d377b13ea791de12d8a39d419d303acb5a6c6b8752c12e31883eae41192a163f"
   },
-  "ipkSize": 2896414,
+  "ipkSize": 2897148,
   "appDescription": "Legacy Stremio frontend built for older LG TVs running webOS 4 such as the 2018 UK6300. Current Stremio Web needs WebAssembly which these TVs lack, so this bundles the older Stremio 4 app with compatibility fixes. Sign in with your normal Stremio account to get your library and addons. No streaming server is included, so set your own, such as Umbrel, under Settings then Streaming server. Use the remote Red and Green buttons to shrink or enlarge the interface.",
   "description": "Legacy Stremio frontend built for older LG TVs running webOS 4 such as the 2018 UK6300. Current Stremio Web needs WebAssembly which these TVs lack, so this bundles the older Stremio 4 app with compatibility fixes. Sign in with your normal Stremio account to get your library and addons. No streaming server is included, so set your own, such as Umbrel, under Settings then Streaming server. Use the remote Red and Green buttons to shrink or enlarge the interface."
 }
