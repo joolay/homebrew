@@ -6,3 +6,6 @@ window.STREMIO_TV_ZOOM = 1.5;
 /* Video buffering for the built-in HLS player. Larger = fewer stutters but more TV memory. */
 window.STREMIO_BUFFER_SECONDS = 90;   // seconds of video to buffer ahead
 window.STREMIO_BUFFER_MB = 100;       // max buffer size in MB (lower if the app restarts for memory)
+/* Casting-device discovery (Chromecast/AirPlay list) is off: it makes the server scan the network and causes
+   a "could not update casting device / server offline" popup. Set to true to re-enable. */
+window.STREMIO_ENABLE_CASTING = false;

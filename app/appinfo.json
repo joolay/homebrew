@@ -1,6 +1,6 @@
 {
   "id": "io.stremio.legacy.tv",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "vendor": "community",
   "type": "web",
   "main": "index.html",
