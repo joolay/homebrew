@@ -47,8 +47,11 @@ A separate app (id `io.stremio.flix.tv`, shown as **Torrentflix**) styled like t
 Install on the TV: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.4.1_all.ipk`.
 
 ## Torrentflix for Umbrel
-The Umbrel app lives in **[joolay/umbrel-apps](https://github.com/joolay/umbrel-apps)** (, store entry ), not here. Install it from your Umbrel's community app store ().
-It uses the streaming server of the Stremio app (, port 11470) and stores profiles, lists and progress on your Umbrel.
+The Umbrel app lives in **[joolay/umbrel-apps](https://github.com/joolay/umbrel-apps)** (`src/torrentflix/`, store entry `joolay-torrentflix/`), not in this repo.
+Install it from your Umbrel's community app store (`https://github.com/joolay/umbrel-apps`).
+It uses the streaming server of the Stremio app (`joolay-stremio`, port 11470) and stores profiles, lists and progress on your Umbrel.
 
-Connect the **TV app**: Torrentflix → Settings → *Profile sync* = , *Streaming server* =  (use the Umbrel's IP if  doesn't resolve on the TV).
-The UI in  is the single source; the Umbrel app mirrors it with .
+Connect the **TV app**: Torrentflix → Settings → *Profile sync* = `http://umbrel.local:3901`, *Streaming server* = `http://umbrel.local:11470`
+(use the Umbrel's IP address if `umbrel.local` doesn't resolve on the TV).
+
+The UI in `app-flix/` is the single source of truth; the Umbrel app mirrors it with `src/torrentflix/sync-ui.sh` (in the umbrel-apps repo).
