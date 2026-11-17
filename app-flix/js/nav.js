@@ -1,6 +1,6 @@
 /* D-pad spatial navigation + magic-remote pointer support. Focus is a CSS class (.focus), not DOM focus. */
 var Nav = (function () {
-  var cur = null, root = document.body, hydrateTimer = null;
+  var cur = null, root = document.body, hydrateTimer = null, onfocus = null;
 
   function vis(el) { return el.getClientRects().length > 0; }
   function items() { return Array.prototype.slice.call(root.querySelectorAll('.f')).filter(vis); }
@@ -9,7 +9,7 @@ var Nav = (function () {
   function set(el, noScroll) {
     if (cur) cur.classList.remove('focus');
     cur = el;
-    if (el) { el.classList.add('focus'); if (!noScroll) reveal(el); }
+    if (el) { el.classList.add('focus'); if (!noScroll) reveal(el); if (onfocus) onfocus(el); }
     scheduleHydrate();
   }
   function reveal(el) {
@@ -22,7 +22,10 @@ var Nav = (function () {
           if (er.left < cr.left + pad) p.scrollLeft -= (cr.left + pad - er.left);
           else if (er.right > cr.right - pad) p.scrollLeft += er.right - (cr.right - pad);
         }
-        if (p.classList.contains('vs') || p.classList.contains('mvs')) {
+        if (p.classList.contains('snap')) {
+          var rw = el.closest('.row');
+          if (rw) { p.scrollTop += rw.getBoundingClientRect().top - p.getBoundingClientRect().top; }
+        } else if (p.classList.contains('vs') || p.classList.contains('mvs')) {
           var row = el.closest('.row') || el, r = row.getBoundingClientRect(), c = p.getBoundingClientRect();
           var top = p.getAttribute('data-pad-top') ? parseInt(p.getAttribute('data-pad-top'), 10) : 110;
           if (r.height > c.height - top - 30) r = el.getBoundingClientRect();
@@ -79,7 +82,7 @@ var Nav = (function () {
   document.addEventListener('keydown', function () { document.body.classList.remove('pointer'); }, true);
 
   return {
-    set: set, move: move, hydrate: scheduleHydrate, items: items,
+    onFocus: function (f) { onfocus = f; }, set: set, move: move, hydrate: scheduleHydrate, items: items,
     cur: function () { return cur; },
     setRoot: function (el, keepFocus) { root = el || document.body; if (!keepFocus) { var l = items(); set(l[0] || null); } },
     root: function () { return root; },

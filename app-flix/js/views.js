@@ -69,6 +69,7 @@ var Views = (function () {
     menuPrev = { root: Nav.root(), cur: Nav.cur() };
     var h = '<div class="menu"><h3>' + esc(title) + '</h3><div class="list mvs" data-pad-top="10">';
     opts.forEach(function (o, i) {
+      if (o.header) { h += '<div class="mh">' + esc(o.header) + '</div>'; return; }
       h += '<div class="opt f" data-act="pick" data-i="' + i + '">' + (o.q != null ? '<span class="q">' + esc(o.q) + '</span>' : '') + esc(o.label) + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</div>';
     });
     h += '</div>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
@@ -76,7 +77,7 @@ var Views = (function () {
     menuEl._opts = opts; menuEl._pick = onPick;
     app.appendChild(menuEl);
     Nav.setRoot(menuEl);
-    var sel = -1; opts.forEach(function (o, i) { if (o.selected) sel = i; });
+    var sel = -1, n = 0; opts.forEach(function (o) { if (o.header) return; if (o.selected) sel = n; n++; });
     if (sel > 0) { var els = menuEl.querySelectorAll('.opt'); Nav.set(els[sel]); }
   }
   function closeMenu(silent) {
@@ -87,12 +88,39 @@ var Views = (function () {
   }
 
   /* ---------- shared pieces ---------- */
-  var TABS = [['home', 'Home'], ['movie', 'Movies'], ['series', 'Series'], ['library', 'My Stremio'], ['search', 'Search'], ['settings', 'Settings']];
+  var TABS = [['home', 'Home'], ['movie', 'Movies'], ['series', 'TV Shows'], ['library', 'My List'], ['search', 'Search'], ['settings', 'Settings']];
+  var PAGE_NAMES = { home: '', movie: 'Movies', series: 'TV Shows', library: 'My List', search: 'Search', settings: 'Settings' };
   function topbar(active) {
-    var h = '<div class="top"><div class="logo">FLIX</div>';
-    TABS.forEach(function (t) { h += '<div class="tab f' + (t[0] === active ? ' on' : '') + '" data-act="page" data-p="' + t[0] + '">' + t[1] + '</div>'; });
-    return h + '<div class="sp"></div></div>';
+    return '<div class="top"><div class="logo f" data-act="menu">TORRENTFLIX</div><div class="pg">' + esc(PAGE_NAMES[active] || '') + '</div></div>';
   }
+  var sideEl = null, sidePrev = null, infoT = null;
+  function openSide() {
+    if (sideEl || menuEl) return;
+    var v = current(); if (!v || ['home', 'movie', 'series', 'library', 'search', 'settings'].indexOf(v.name) < 0) return;
+    sidePrev = { root: Nav.root(), cur: Nav.cur() };
+    var h = '<div class="sidepanel"><div class="slogo">TORRENTFLIX</div>';
+    TABS.forEach(function (t) { h += '<div class="sitem f' + (t[0] === v.name ? ' on' : '') + '" data-act="page" data-p="' + t[0] + '">' + t[1] + '</div>'; });
+    h += '<div class="sitem f" data-act="exit">Exit</div></div>';
+    sideEl = document.createElement('div'); sideEl.className = 'side'; sideEl.innerHTML = h; app.appendChild(sideEl);
+    Nav.setRoot(sideEl); var on = sideEl.querySelector('.sitem.on'); if (on) Nav.set(on);
+  }
+  function closeSide(restore) {
+    if (!sideEl) return false;
+    app.removeChild(sideEl); sideEl = null;
+    if (restore !== false && sidePrev) { Nav.setRoot(sidePrev.root, true); if (sidePrev.cur) Nav.set(sidePrev.cur, true); }
+    return true;
+  }
+  function showInfo(m) {
+    var el = document.getElementById('info'); if (!el || !m) return;
+    var r = m._resume ? '<div class="meta"><b>Resume</b><span>' + esc(fmtTime(m._resume.t)) + ' of ' + esc(fmtTime(m._resume.d)) + '</span></div>' : '<div class="meta">' + meta1(m) + '</div>';
+    el.innerHTML = '<h1>' + esc(m.name) + '</h1>' + r + '<div class="desc">' + esc(m.description || '') + '</div>';
+  }
+  Nav.onFocus(function (el) {
+    if (!el || !el.classList || !el.classList.contains('card')) return;
+    var k = el.getAttribute('data-k'); if (k == null) return;
+    clearTimeout(infoT); infoT = setTimeout(function () { showInfo(reg[+k]); }, 120);
+  });
+
   function card(m, extra) {
     var k = ref(m), bar = '';
     if (extra && extra.pct != null) bar = '<div class="barbg"></div><div class="bar" style="width:' + Math.round(extra.pct * 100) + '%"></div>';
@@ -135,47 +163,51 @@ var Views = (function () {
   /* ---------- browse pages ---------- */
   var browseToken = 0;
   function page(kind) {
+    closeSide(false);
     if (kind === 'search') return searchPage();
     if (kind === 'settings') return settingsPage();
-    var token = ++browseToken;
-    var el = replaceAll(kind, topbar(kind) + '<div class="vs" id="main"><div class="loading">Loading…</div></div>', { onBack: function () { if (kind !== 'home') { page('home'); return true; } return false; } });
-    Nav.first('.tab.on');
+    var token = ++browseToken, browse = kind !== 'library';
+    var el = replaceAll(kind, topbar(kind) + (browse ? '<div id="info"></div>' : '') + '<div class="vs' + (browse ? ' rows snap' : '') + '" id="main"><div class="loading">Loading…</div></div>',
+      { onBack: function () { openSide(); return true; } });
+    Nav.first('.logo');
     Api.ensure().then(function () {
       if (token !== browseToken) return;
       if (kind === 'library') return buildLibrary(el, token);
       buildBrowse(kind, el, token);
     }).catch(function (e) {
       if (token !== browseToken) return;
-      el.querySelector('#main').innerHTML = '<div class="empty">Could not load Stremio data: ' + esc(e.message) + '</div>';
+      el.querySelector('#main').innerHTML = '<div class="empty">Could not load data: ' + esc(e.message) + '</div>';
     });
   }
   function buildBrowse(kind, el, token) {
     var main = el.querySelector('#main'), defs = Api.catalogDefs().filter(function (d) { return kind === 'home' || d.type === kind; }).slice(0, 10);
-    var heroHtml = '<div class="hero" id="hero"></div>';
-    main.innerHTML = heroHtml + '<div id="rows"></div>';
-    var rows = main.querySelector('#rows'), heroSet = false, slots = [];
+    main.innerHTML = '<div id="rows"></div>';
+    var rows = main.querySelector('#rows'), slots = [], focused = false;
+    function focusFirst() {
+      if (focused || token !== browseToken) return;
+      var c = rows.querySelector('.card'); if (!c) return;
+      focused = true;
+      if (!Nav.cur() || !Nav.root().contains(Nav.cur()) || Nav.cur().classList.contains('logo')) { Nav.set(c); showInfo(reg[+c.getAttribute('data-k')]); }
+    }
     if (kind === 'home') {
       var slot0 = document.createElement('div'); rows.appendChild(slot0);
       continueItems().then(function (cont) {
         if (token !== browseToken || !cont.length) return;
         slot0.innerHTML = rowHtml('Continue Watching', cont.map(function (r) { return { type: r.type, id: r.id, name: r.name, poster: r.poster, _resume: r }; }), function (m) { return { pct: m._resume.t / m._resume.d }; });
-        Nav.hydrate();
+        Nav.hydrate(); focusFirst();
       });
     }
     defs.forEach(function (d, i) { var s = document.createElement('div'); rows.appendChild(s); slots.push(s); });
     var pending = defs.length;
-    function done() { if (--pending === 0 && token === browseToken && !rows.querySelector('.row')) main.innerHTML = '<div class="empty">Nothing to show. Check your addons in Settings.</div>'; }
+    function done() { if (--pending === 0 && token === browseToken && !rows.querySelector('.row')) main.innerHTML = '<div class="empty">Nothing to show right now. Check your internet connection.</div>'; }
     defs.forEach(function (d, i) {
       Api.fetchCatalog(d).then(function (metas) {
         if (token !== browseToken || !metas.length) return;
-        var title = (d.name || d.id) + ' – ' + (d.type === 'movie' ? 'Movies' : 'Series');
+        var title = (d.name || d.id) + ' – ' + (d.type === 'movie' ? 'Movies' : 'TV Shows');
         slots[i].innerHTML = rowHtml(title, metas);
-        var best = metas.filter(function (m) { return m.background; })[0];
-        if (!heroSet && best) { heroSet = true; setHero(el, best); }
-        Nav.hydrate();
+        Nav.hydrate(); focusFirst();
       }).catch(function () {}).then(done);
     });
-    setTimeout(function () { if (!heroSet) setHero(el, null); }, 400);
     Nav.hydrate();
   }
   function continueItems() {
@@ -184,16 +216,6 @@ var Views = (function () {
       remote.concat(Resume.list()).forEach(function (r) { var o = map[r.id]; if (!o || (r.ts || 0) > (o.ts || 0)) map[r.id] = r; });
       return Object.keys(map).map(function (k) { return map[k]; }).sort(function (x, y) { return (y.ts || 0) - (x.ts || 0); }).slice(0, 20);
     });
-  }
-  function setHero(el, m) {
-    var hero = el.querySelector('#hero'); if (!hero) return;
-    if (!m) { hero.style.height = '210px'; hero.innerHTML = ''; return; }
-    var k = ref(m);
-    hero.innerHTML = '<div class="bg img" data-bg="' + esc(m.background || m.poster || '') + '" data-keep="1"></div><div class="shade"></div><div class="info">' +
-      (m.logo ? '<div class="logoimg" data-bg="' + esc(m.logo) + '" data-keep="1"></div>' : '<h1>' + esc(m.name) + '</h1>') +
-      '<div class="meta">' + meta1(m) + '</div><div class="desc">' + esc(m.description || '') + '</div>' +
-      '<div class="btns"><div class="btn f" data-act="open" data-k="' + k + '">▶ Play</div><div class="btn f" data-act="open" data-k="' + k + '">ⓘ More info</div></div></div>';
-    Nav.hydrate();
   }
   function buildLibrary(el, token) {
     var main = el.querySelector('#main');
@@ -211,7 +233,7 @@ var Views = (function () {
   function searchPage() {
     ++browseToken;
     replaceAll('search', topbar('search') + '<div class="vs" id="main"><div class="grid" style="padding-top:120px"><input id="q" class="field f" style="width:1100px" placeholder="Search movies and series" autocomplete="off"><div id="res"></div></div></div>',
-      { onBack: function () { page('home'); return true; } });
+      { onBack: function () { openSide(); return true; } });
     Nav.first('#q');
   }
   function runSearch(q) {
@@ -231,7 +253,7 @@ var Views = (function () {
     detail(m.type, m.id, m);
   }
   function detail(type, id, seed) {
-    var el = mount('detail', '<div class="detail"><div class="bg img" data-keep="1" data-bg="' + esc(seed && (seed.background || seed.poster) || '') + '"></div><div class="shade"></div><div class="vs" id="dmain"><div class="info"><h1 class="title-big">' + esc(seed && seed.name || '') + '</h1><div class="meta">Loading…</div></div></div></div>');
+    var el = mount('detail', '<div class="detail"><div class="poster img" data-keep="1" data-bg="' + esc(seed && seed.poster || '') + '"></div><div class="vs" id="dmain"><div class="info"><h1 class="title-big">' + esc(seed && seed.name || '') + '</h1><div class="meta">Loading…</div></div></div></div>');
     Nav.hydrate();
     Api.ensure().then(function () { return Promise.all([Api.getMeta(type, id), Api.getLibraryAll().catch(function () { return []; })]); }).then(function (r) { var m = r[0];
       if (stack[stack.length - 1].el !== el) return;
@@ -272,7 +294,7 @@ var Views = (function () {
     var info = Object.assign({}, baseInfo, { videoId: playVid, startMs: start });
     if (isSeries) { info.sub = sub; }
     var k = ref(info), k2 = ref(Object.assign({}, info, { pick: true }));
-    var h = '<div class="info">' + (m.logo ? '<div class="logoimg" data-bg="' + esc(m.logo) + '" data-keep="1"></div>' : '<h1 class="title-big">' + esc(m.name) + '</h1>') +
+    var h = '<div class="info"><h1 class="title-big">' + esc(m.name) + '</h1>' +
       '<div class="meta">' + meta1(m) + '</div><div class="desc" style="max-height:170px">' + esc(m.description || '') + '</div>' +
       '<div class="btns"><div class="btn f" data-act="play" data-k="' + k + '">' + playLabel + (isSeries && sub ? ' ' + sub : '') + '</div>' +
       '<div class="btn f" data-act="play" data-k="' + k2 + '">Choose source</div>' +
@@ -284,7 +306,7 @@ var Views = (function () {
     }
     var d = el.querySelector('#dmain'); d.innerHTML = h; d.scrollTop = 0;
     el._detail = { type: type, id: id, m: m, S: S, base: baseInfo };
-    var bg = el.querySelector('.detail .bg'); if (m.background) { bg.setAttribute('data-bg', m.background); bg.setAttribute('data-on', '0'); }
+    var po = el.querySelector('.detail .poster'); if (po && m.poster) { po.setAttribute('data-bg', m.poster); po.setAttribute('data-on', '0'); }
     if (isSeries) renderEpisodes(el, season);
     Nav.hydrate();
     Nav.first('.btn');
@@ -307,34 +329,31 @@ var Views = (function () {
   /* ---------- settings ---------- */
   function settingsPage() {
     ++browseToken;
-    var email = Store.get('email', ''), signed = !!Api.authKey(), addons = Store.get('addons', []) || [];
+    var email = Store.get('email', ''), signed = !!Api.authKey();
     var h = topbar('settings') + '<div class="vs" id="main"><div class="settings"><h1>Settings</h1>' +
-      '<div class="lbl">STREAM SOURCE – TORRENTIO (configure at torrentio.strem.fun, paste the link here)</div>' +
+      '<div class="lbl">STREAM SOURCE – TORRENTIO (optional: configure at torrentio.strem.fun and paste the link here)</div>' +
       '<input id="tio" class="field f" value="' + esc(Api.torrentioUrl()) + '" placeholder="https://torrentio.strem.fun/…">' +
       '<div class="srow f" data-act="savetio">Save Torrentio link</div>' +
       '<div class="srow f" data-act="testtio">Test Torrentio</div>' +
-      '<div class="srow f" data-act="resettio">Reset to recommended TV settings (1080p/720p H.264 friendly, under 12 GB)</div>' +
-      '<div class="srow f" data-act="toggleonly">Use only Torrentio for streams: <b>' + (Store.get('onlyTorrentio', true) === false ? 'OFF (also use my Stremio addons)' : 'ON') + '</b></div>' +
+      '<div class="srow f" data-act="resettio">Reset Torrentio link to default</div>' +
       '<div class="lbl">STREAMING SERVER (your Umbrel)</div><input id="srv" class="field f" value="' + esc(Api.server()) + '" placeholder="http://192.168.1.50:11470">' +
       '<div class="srow f" data-act="saveserver">Save server address</div>' +
       '<div class="srow f" data-act="testserver">Test server connection</div>' +
       '<div class="srow f" data-act="toggletc">Always transcode to HLS (use if video stutters or won\'t play): <b>' + (Store.get('transcode', false) ? 'ON' : 'OFF') + '</b></div>' +
-      '<div class="lbl">STREMIO ACCOUNT (optional: library, My List and progress sync)</div>' +
+      '<div class="lbl">STREMIO ACCOUNT (optional – only for your library, My List and watch progress sync)</div>' +
       (signed ? '<div class="srow f" data-act="signout">Signed in as ' + esc(email) + ' – Sign out</div>' : '<div class="srow f" data-act="gologin">Sign in to Stremio</div>') +
       (signed ? '<div class="srow f" data-act="togglesync">Sync watch progress to your Stremio account: <b>' + (Store.get('sync', true) === false ? 'OFF' : 'ON') + '</b></div>' : '') +
-      '<div class="lbl">EXTRA ADDONS (manifest URLs)</div>';
-    addons.forEach(function (u, i) { h += '<div class="srow f" data-act="deladdon" data-i="' + i + '">' + esc(u) + '  –  remove</div>'; });
-    h += '<input id="addonurl" class="field f" placeholder="https://…/manifest.json"><div class="srow f" data-act="addaddon">Add addon</div>' +
-      '<div class="srow f" data-act="reloadaddons">Reload addons and catalogs</div>' +
-      '<div class="hint">Flix for Stremio ' + (window.FLIX_VERSION || '') + '. Stremio is used only as your source of addons, library and streams; playback runs through your own streaming server.</div></div></div>';
-    replaceAll('settings', h, { onBack: function () { page('home'); return true; } });
-    Nav.first('.tab.on');
+      '<div class="hint">Torrentflix ' + (window.FLIX_VERSION || '') + '. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution. Posters and details come from Cinemeta. Playback runs through your own streaming server.</div></div></div>';
+    replaceAll('settings', h, { onBack: function () { openSide(); return true; } });
+    Nav.first('#tio');
   }
 
   /* ---------- actions ---------- */
   function act(el) {
     var a = el.getAttribute('data-act');
     if (a === 'page') return page(el.getAttribute('data-p'));
+    if (a === 'menu') return openSide();
+    if (a === 'exit') { try { window.close(); } catch (e) {} return; }
     if (a === 'open') return openItem(reg[+el.getAttribute('data-k')]);
     if (a === 'play') return Player.open(reg[+el.getAttribute('data-k')]);
     if (a === 'season') { var v = current(); return renderEpisodes(v.el, +el.getAttribute('data-s')); }
@@ -349,8 +368,7 @@ var Views = (function () {
       }).catch(function (e) { toast('Could not update library: ' + e.message, 4000); });
     }
     if (a === 'savetio') { var tu = document.getElementById('tio').value.trim().replace(/^stremio:\/\//, 'https://').replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); if (tu && !/^https?:\/\//.test(tu)) return toast('Link must start with https://'); Store.set('torrentio', tu); toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); return Api.reload().then(function () { toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); }); }
-    if (a === 'resettio') { Store.del('torrentio'); toast('Reset to recommended settings'); return Api.reload().then(settingsPage); }
-    if (a === 'toggleonly') { Store.set('onlyTorrentio', Store.get('onlyTorrentio', true) === false); return Api.reload().then(settingsPage); }
+    if (a === 'resettio') { Store.del('torrentio'); toast('Torrentio link reset to default'); return Api.reload().then(settingsPage); }
     if (a === 'testtio') {
       var tb = document.getElementById('tio').value.trim().replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); toast('Testing Torrentio …', 15000);
       return fetch(tb + '/stream/movie/tt0111161.json').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -369,15 +387,10 @@ var Views = (function () {
         .catch(function (e) { toast('Cannot reach the server: ' + e.message, 5000); });
     }
     if (a === 'toggletc') { Store.set('transcode', !Store.get('transcode', false)); return settingsPage(); }
-    if (a === 'addaddon') {
-      var url = document.getElementById('addonurl').value.trim().replace(/^stremio:\/\//, 'https://'); if (!/^https?:\/\//.test(url)) return toast('Enter a full addon manifest URL');
-      var l = Store.get('addons', []) || []; l.push(url); Store.set('addons', l); toast('Addon added'); return Api.reload().then(settingsPage);
-    }
-    if (a === 'deladdon') { var l2 = Store.get('addons', []) || []; l2.splice(+el.getAttribute('data-i'), 1); Store.set('addons', l2); return Api.reload().then(settingsPage); }
-    if (a === 'reloadaddons') { toast('Reloading…'); return Api.reload().then(function () { toast('Addons reloaded'); }); }
   }
   function back() {
     if (closeMenu()) return true;
+    if (closeSide()) return true;
     var v = current();
     if (v && v.onBack && v.onBack() === true) return true;
     return pop();
@@ -388,6 +401,6 @@ var Views = (function () {
     if (el && Nav.root().contains(el)) act(el);
   });
 
-  return { detail: detail, page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
+  return { openSide: openSide, closeSide: closeSide, sideOpen: function () { return !!sideEl; }, detail: detail, page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
            act: act, runSearch: runSearch, current: current, hasMenu: function () { return !!menuEl; } };
 })();

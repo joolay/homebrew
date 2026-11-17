@@ -23,11 +23,11 @@ var Player = (function () {
     var vid = info.videoId || info.id;
     if (info._direct) { S.streams = [{ _direct: info._direct, name: 'Direct', _q: { quality: '', seeds: 0, size: '', score: 0 } }]; return start(0); }
     Api.ensure().then(function () {
-      return Api.getStreams(info.type, vid, function (list) { if (S && S.el === el) spin('Finding sources… ' + list.length + ' found'); });
-    }).then(function (list) {
+      return Api.getStreams(info.type, vid, function (n) { if (S && S.el === el) spin('Finding sources… ' + n + ' found'); });
+    }).then(function (res) {
       if (!S || S.el !== el) return;
-      S.streams = list;
-      if (!list.length) { spin(''); say('No playable sources found.\nCheck that your Stremio account has stream addons (Settings).'); return; }
+      var list = res.list; S.streams = list; S.groups = res.groups;
+      if (!list.length) { spin(''); say('No sources found on Torrentio for this title.\nTry another title, or check the Torrentio link in Settings.'); return; }
       if (info.pick) { spin(''); return pickSource(); }
       start(0);
     }).catch(function (e) { if (S && S.el === el) { spin(''); say('Could not find sources: ' + e.message); } });
@@ -155,11 +155,17 @@ var Player = (function () {
   /* ---- menus ---- */
   function pickSource() {
     if (!S) return;
-    var opts = S.streams.slice(0, 40).map(function (s, i) {
-      var q = s._q || {}, name = String(s.title || s.name || 'Stream').split('\n')[0];
-      return { q: q.quality || '—', label: name.slice(0, 80), sub: [q.size, q.seeds ? '👤 ' + q.seeds : '', s.url ? 'direct' : 'torrent', s._addon].filter(Boolean).join('  '), selected: i === S.idx };
+    var opts = [];
+    (S.groups || []).forEach(function (g) {
+      opts.push({ header: g.label === 'Other' ? 'Other resolutions' : g.label });
+      g.items.forEach(function (s) {
+        var i = S.streams.indexOf(s), name = String(s.title || s.name || 'Stream').split('\n')[0], q = s._q || {};
+        opts.push({ q: '👤 ' + q.seeds, label: name.slice(0, 90), sub: q.size, idx: i, selected: i === S.idx });
+      });
     });
-    Views.menu('Choose a source', opts, function (o, i) { S.failed = false; S.tried = {}; S.resumed = false; S.info.startMs = S.v.currentTime * 1000 || S.info.startMs; start(i); }, 'Torrent sources stream through your Umbrel. 1080p H.264 plays most reliably on this TV.');
+    Views.menu('Choose a source – top 3 by seeds per resolution', opts, function (o) {
+      S.failed = false; S.tried = {}; S.resumed = false; S.info.startMs = S.v.currentTime * 1000 || S.info.startMs; start(o.idx);
+    }, 'Streams from Torrentio play through your streaming server. If one will not play, try a different resolution.');
   }
   function pickSpeed() {
     var rates = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];

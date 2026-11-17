@@ -1,16 +1,16 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "web",
-  "title": "Flix for Stremio",
-  "appDescription": "Netflix style interface for older LG TVs running webOS 4 such as the 2018 UK6300. Browse with Cinemeta posters and details, get sources from Torrentio, and play them through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Signing in is optional and adds your library, My List and watch progress sync. Includes a hero banner, season and episode pages, subtitles, playback speed and next episode.",
-  "description": "Netflix style interface for older LG TVs running webOS 4 such as the 2018 UK6300. Browse with Cinemeta posters and details, get sources from Torrentio, and play them through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Signing in is optional and adds your library, My List and watch progress sync. Includes a hero banner, season and episode pages, subtitles, playback speed and next episode.",
+  "title": "Torrentflix",
+  "appDescription": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed, and signing in is optional for your list and watch progress sync. Includes seasons and episodes, subtitles, playback speed and next episode.",
+  "description": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed, and signing in is optional for your list and watch progress sync. Includes seasons and episodes, subtitles, playback speed and next episode.",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.2.0_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.3.0_all.ipk",
   "ipkHash": {
-    "sha256": "9e4fa42d14dc935df3fb1a4a13fd07c106348c58fa56becba711ecd31bf7214c"
+    "sha256": "4542d6b11e8d0e901936017e24cf3e9462668c9dd6df5b6f25ff5062c06dcbc0"
   },
-  "ipkSize": 25938
+  "ipkSize": 27122
 }

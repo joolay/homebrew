@@ -35,18 +35,13 @@ Use the Umbrel's **IP address** if `umbrel.local` (mDNS) doesn't resolve on the 
 - Stremio 4.4 is unmaintained upstream; new features of Stremio 5 aren't available.
 
 
-## Flix for Stremio (Netflix-style frontend) — `app-flix/`
-A second, separate app (`io.stremio.flix.tv`) with a clean Netflix-style interface written for Chromium 53 (no WebAssembly).
+## Torrentflix (classic Netflix TV style) — `app-flix/`
+A separate app (id `io.stremio.flix.tv`, shown as **Torrentflix**) styled like the older Netflix TV app: black screen, info panel for the focused title above the rows, square white-framed box art, pop-out left menu (press Left on the first title, or Back). Written for Chromium 53 (no WebAssembly).
 
-**How it gets its content**
-- Posters, details and episodes: Cinemeta (Stremio's public metadata).
-- Sources: **Torrentio** (built in, configurable in Settings). No Stremio account needed.
-- Playback: your own Stremio streaming server (e.g. Umbrel) — torrents are streamed via `http://<umbrel>:11470/<infoHash>/<file>`, with automatic HLS transcoding fallback.
-- Subtitles: OpenSubtitles (built in).
-- Optional Stremio sign-in: library ("My Stremio"), "+ My List", Continue Watching and watch-progress sync.
+- **Sources: Torrentio only.** Per title it shows the **top 3 sources by seeds in each resolution: 4K, 1080p, 720p, Other**. "Play" starts the top-seeded 1080p source (then 720p, 4K, other); "Choose source" shows all 12.
+- Posters/details/episodes: Cinemeta. Subtitles: OpenSubtitles. No Stremio account needed.
+- Playback: your own Stremio streaming server (e.g. Umbrel) via `http://<umbrel>:11470/<infoHash>/<file>`, with automatic HLS transcoding fallback.
+- Optional Stremio sign-in: My List, Continue Watching and watch-progress sync.
+- Seasons/episodes, resume, auto-play next episode, playback speed, subtitles.
 
-**Features**: Home / Movies / Series / My Stremio / Search / Settings, hero banner, poster rows, seasons and episodes, smart source picking (prefers 1080p H.264 with healthy seeders; avoids CAM, huge remux, HDR, dead torrents), source list, speed and subtitle controls, resume, auto-play next episode.
-
-**Settings**: Torrentio link (default is a TV-friendly config: no 4K/HDR/remux/CAM, under 12 GB), Umbrel address + connection test, always-transcode switch, optional account, extra addons.
-
-Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.2.0_all.ipk`.
+Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.3.0_all.ipk`.

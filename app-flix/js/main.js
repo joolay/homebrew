@@ -1,5 +1,5 @@
 /* Boot + global key handling. */
-window.FLIX_VERSION = 'v1.2.0';
+window.FLIX_VERSION = 'v1.3.0';
 (function () {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
   var BACK = { 8: 1, 27: 1, 461: 1, 10009: 1 };
@@ -13,7 +13,12 @@ window.FLIX_VERSION = 'v1.2.0';
       if (code === 38 || code === 40) { ae.blur(); } else { return; }   // normal typing
     }
     if (Player.key(code, e)) { e.preventDefault(); return; }
-    if (KEYS[code]) { e.preventDefault(); Nav.move(KEYS[code]); return; }
+    if (KEYS[code]) {
+      e.preventDefault();
+      if (code === 39 && Views.sideOpen()) { Views.closeSide(); return; }
+      if (!Nav.move(KEYS[code]) && code === 37) Views.openSide();
+      return;
+    }
     if (code === 13) {
       e.preventDefault();
       var c = Nav.cur();

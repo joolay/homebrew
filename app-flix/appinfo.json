@@ -1,14 +1,1 @@
-{
-  "id": "io.stremio.flix.tv",
-  "version": "1.2.0",
-  "vendor": "community",
-  "type": "web",
-  "main": "index.html",
-  "title": "Flix for Stremio",
-  "icon": "icon.png",
-  "largeIcon": "largeIcon.png",
-  "bgColor": "#141414",
-  "resolution": "1920x1080",
-  "disableBackHistoryAPI": true,
-  "inspectable": true
-}
+{"id": "io.stremio.flix.tv", "version": "1.3.0", "vendor": "community", "type": "web", "main": "index.html", "title": "Torrentflix", "icon": "icon.png", "largeIcon": "largeIcon.png", "bgColor": "#141414", "resolution": "1920x1080", "disableBackHistoryAPI": true, "inspectable": true}

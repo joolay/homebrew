@@ -2,7 +2,8 @@
 var Api = (function () {
   var API = 'https://api.strem.io/api/';
   var CINEMETA = 'https://v3-cinemeta.strem.io';
-  var DEFAULT_TORRENTIO = 'https://torrentio.strem.fun/qualityfilter=brremux,hdrall,dolbyvision,dolbyvisionwithhdr,4k,scr,cam,unknown|sizefilter=12GB|limit=10';
+  var DEFAULT_TORRENTIO = 'https://torrentio.strem.fun/qualityfilter=scr,cam';
+  var OLD_DEFAULT = 'https://torrentio.strem.fun/qualityfilter=brremux,hdrall,dolbyvision,dolbyvisionwithhdr,4k,scr,cam,unknown|sizefilter=12GB|limit=10';
   var addons = [];           // [{base, manifest, torrentio?}]
   var loaded = false;
 
@@ -25,7 +26,7 @@ var Api = (function () {
   }
   function baseOf(url) { return url.replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); }
   function authKey() { return Store.get('auth', null); }
-  function torrentioUrl() { var v = Store.get('torrentio', undefined); return v === undefined || v === null ? DEFAULT_TORRENTIO : v; }
+  function torrentioUrl() { var v = Store.get('torrentio', undefined); return v === undefined || v === null || v === OLD_DEFAULT ? DEFAULT_TORRENTIO : v; }
   function builtinAddons() {
     var out = [], t = torrentioUrl();
     if (t) out.push({ base: baseOf(t), torrentio: true, manifest: { id: 'com.stremio.torrentio.addon', name: 'Torrentio', version: '0', resources: ['stream'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [] } });
@@ -46,23 +47,10 @@ var Api = (function () {
 
   /* ---- addons ---- */
   function loadAddons() {
-    var jobs = [], k = authKey();
-    if (k) {
-      jobs.push(post('addonCollectionGet', { type: 'AddonCollectionGet', authKey: k, update: true }).then(function (r) {
-        return (r.addons || []).map(function (a) { return { base: baseOf(a.transportUrl), manifest: a.manifest }; });
-      }).catch(function () { return []; }));
-    }
-    (Store.get('addons', []) || []).forEach(function (u) {
-      jobs.push(getJSON(u).then(function (m) { return [{ base: baseOf(u), manifest: m }]; }).catch(function () { return []; }));
-    });
-    return Promise.all(jobs).then(function (parts) {
-      var list = [].concat.apply([], parts).concat(builtinAddons()), seen = {};
-      list = list.filter(function (a) { if (!a.manifest || seen[a.base]) return false; seen[a.base] = 1; return true; });
-      var hasCat = list.some(function (a) { return /cinemeta/i.test(a.base) || /cinemeta/i.test(a.manifest.id || ''); });
-      if (hasCat) { loaded = true; addons = list; return addons; }
-      return getJSON(CINEMETA + '/manifest.json').then(function (m) {
-        list.unshift({ base: CINEMETA, manifest: m }); addons = list; loaded = true; return addons;
-      });
+    var fallback = { id: 'com.linvo.cinemeta', name: 'Cinemeta', version: '0', resources: ['catalog', 'meta'], types: ['movie', 'series'], idPrefixes: ['tt'],
+      catalogs: [{ type: 'movie', id: 'top', name: 'Popular' }, { type: 'series', id: 'top', name: 'Popular' }] };
+    return getJSON(CINEMETA + '/manifest.json').catch(function () { return fallback; }).then(function (m) {
+      addons = [{ base: CINEMETA, manifest: m }].concat(builtinAddons()); loaded = true; return addons;
     });
   }
   function ensure() { return loaded ? Promise.resolve(addons) : loadAddons(); }
@@ -226,21 +214,46 @@ var Api = (function () {
     if (!s.url && !s.infoHash) sc -= 500;    // not playable here (external/youtube)
     return { quality: q, seeds: seeds, size: size ? size[1] + ' ' + size[2].toUpperCase() : '', score: sc };
   }
+  /* Category from Torrentio's own label ("Torrentio\n1080p"), falling back to the release text. */
+  function categoryOf(s) {
+    var tok = String(s.name || '').split('\n')[1] || '';
+    tok = tok.split(/[\s|]/)[0].toLowerCase();
+    if (tok === '4k' || tok === '2160p') return '4K';
+    if (tok === '1080p') return '1080p';
+    if (tok === '720p') return '720p';
+    if (tok) return 'Other';
+    var q = s._q ? s._q.quality : '';
+    return q === '4K' || q === '1080p' || q === '720p' ? q : 'Other';
+  }
+  var CATS = ['4K', '1080p', '720p', 'Other'];          // display order
+  var AUTO = ['1080p', '720p', '4K', 'Other'];          // what plays automatically (first with sources, highest seeds)
+  function organise(found) {
+    var seen = {}, by = { '4K': [], '1080p': [], '720p': [], 'Other': [] };
+    found.forEach(function (s) {
+      if (s._q.score <= -400 || !s.infoHash && !s.url) return;
+      if (/\bcam\b|camrip|hdcam|telesync|hdts|telecine/.test(((s.title || '') + (s.name || '')).toLowerCase())) return;
+      var key = (s.infoHash || s.url) + ':' + (s.fileIdx == null ? '' : s.fileIdx);
+      if (seen[key]) return; seen[key] = 1;
+      s._cat = categoryOf(s); by[s._cat].push(s);
+    });
+    var groups = [];
+    CATS.forEach(function (c) {
+      by[c].sort(function (a, b) { return (b._q.seeds - a._q.seeds) || (b._q.score - a._q.score); });
+      if (by[c].length) groups.push({ label: c, items: by[c].slice(0, 3) });
+    });
+    var list = [];
+    AUTO.forEach(function (c) { groups.forEach(function (g) { if (g.label === c) list = list.concat(g.items); }); });
+    return { list: list, groups: groups };
+  }
   function getStreams(type, videoId, onPartial) {
     var found = [];
-    var only = Store.get('onlyTorrentio', true) !== false && addons.some(function (a) { return a.torrentio; });
-    var jobs = addons.filter(function (a) { return supports(a, 'stream', type, videoId) && (!only || a.torrentio); }).map(function (a) {
-      return getJSON(a.base + '/stream/' + type + '/' + encodeURIComponent(videoId) + '.json', 20000).then(function (r) {
-        (r.streams || []).forEach(function (s) {
-          var d = describe(s); s._q = d; s._addon = a.manifest.name || 'Addon'; found.push(s);
-        });
-        if (onPartial) onPartial(sorted(found));
+    var jobs = addons.filter(function (a) { return a.torrentio && supports(a, 'stream', type, videoId); }).map(function (a) {
+      return getJSON(a.base + '/stream/' + type + '/' + encodeURIComponent(videoId) + '.json', 30000).then(function (r) {
+        (r.streams || []).forEach(function (s) { s._q = describe(s); s._addon = 'Torrentio'; found.push(s); });
+        if (onPartial) onPartial(found.length);
       }).catch(function () {});
     });
-    return Promise.all(jobs).then(function () { return sorted(found); });
-  }
-  function sorted(list) {
-    return list.filter(function (s) { return s._q.score > -400; }).sort(function (a, b) { return b._q.score - a._q.score; });
+    return Promise.all(jobs).then(function () { return organise(found); });
   }
   function getSubtitles(type, videoId) {
     var jobs = addons.filter(function (a) { return supports(a, 'subtitles', type, videoId); }).map(function (a) {
