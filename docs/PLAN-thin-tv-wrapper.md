@@ -56,7 +56,7 @@ The player stays in the served UI (it is the TV's normal HTML5 `<video>`, not a 
 - Everything must stay Chromium-53 compatible even though browsers are the "main" client now.
 
 ## Open questions (ask before/while building)
-1. Is serving the full UI on open port 3901 acceptable? (alternative: shared-secret token in the launcher URL, more work, still LAN-only).
+1. ~~Open UI on port 3901~~ **superseded** by the JoolzApp-account plan below: no open API/UI port any more; everything sits behind the account.
 2. Keep the TV address default as `umbrel.local` or ask for an IP on first run (mDNS can fail on some TVs)?
 3. Chromium-53 guard: **recommended = server-side device detection + a separate compat build (see "Device detection and the compat build" below)**; confirm.
 4. Slug stays `flix` (`joolay-flix`) — confirm, since ids cannot change after release.
@@ -93,3 +93,49 @@ Idea: write the UI once in modern code; the Umbrel server detects old TV browser
 4. Deliberate-failure test: a bad snippet (grid, async/await without polyfill) must make CI red.
 
 **Consequences for the plan:** step 4 becomes "compat build + CI guards"; step 2 moves UI source to `src/flix/ui/` (source) with `build.js` producing `dist/modern` and `dist/compat`; `server.js` gains `pickBuild(req)`; Dockerfile gets a build stage (`node` + Babel/PostCSS), runtime stage serves only the output. Launcher stays unchanged. Still on the real TV: only the user can confirm final behaviour.
+
+## Public address + JoolzApp account + dashboard (added after discussion; supersedes the "open port 3901" idea)
+Goal: reach JoolzFlix on a public HTTPS address, lock it behind the JoolzApp account, and show it on the JoolzApp dashboard.
+Findings from `joolay/umbrel-apps` (Listify is the pattern to copy; read from `src/listify`, `joolay-listify/docker-compose.yml`, `deploy/tsdproxy/README.md`, `src/portal-admin/README.md`, `CLAUDE.md`):
+
+**1. Public address = TSDProxy + Tailscale Funnel, driven by compose labels.** Add to the `web` service:
+`ports: ["3901:3900"]` and labels `tsdproxy.enable: "true"`, `tsdproxy.name: "flix"`, `tsdproxy.port.1: "443/https:3901/http, no_autodetect, tailscale_funnel"`
+-> `https://flix.<tailnet>.ts.net`. Allowed ONLY because the app locks itself behind the account. Host port 3901 is free once the old open sync-API port is dropped (keep ports unique store-wide). `app_proxy` gets `PROXY_AUTH_ADD: "false"` like Listify (no Umbrel login; the account is the lock).
+
+**2. Lock = JoolzApp (PocketBase) account, copied from Listify.** `src/flix` gains `pocketbase.js`, `portal-client.js`, `activity.js`, `guardians.js` (copies), env `POCKETBASE_APP_ID=flix`, `POCKETBASE_APP_NAME=JoolzFlix`, `REQUIRE_ACCOUNTS=1`.
+- Routes: `/api/account/login|me|logout|forgot` (token in header `x-gd-token` or cookie `gd_token`, "remember me" = 90 days), `gateOf(user)` for access (portal.access approval, app disabled / maintenance, guardian-pending minors).
+- Sign-up stays on the shared JoolzApp sign-up page (Portal Admin); admin approval per app as configured there.
+- Our UI gets its own login screen (TV-style, on-screen keyboard friendly) instead of Listify's Glass `gate.html`.
+- Data becomes **per account**: `<data>/users/<userId>.json` with up to 12 profiles, each with My List and watch progress (replaces the global `state.json` + open `/tf/api`). `/tf/api/*` requires a valid account token. The merge rules (newest entry wins, tombstones) are reused per user.
+- Preferences ("settings live on the account", CLAUDE.md): UI preferences such as TV zoom/transcode/Torrentio link move to a `pref.flix` row via `setAppPref` (see `src/diner-bell/pocketbase.js`) instead of only localStorage.
+- No PocketBase collections needed (like Listify, data is files in the app data folder); Portal Admin links the app within ~30 s of install (`linkNewApps`) and writes `pocketbase.env`; the app must fail closed without it and not need a restart (`pb.reload()`).
+
+**3. Dashboard.** Portal Admin scans compose files and puts every installed `joolay-*` app on the JoolzApp home screen unless the compose sets `JOOLZAPP_DASHBOARD=hidden` (that is for owner-only tools). JoolzFlix keeps the default (visible). Then, once, in Portal Admin > Apps > URL register `https://flix.<tailnet>.ts.net` so approved users get an **Open** button (manual step in the UI, not code). Check the tile + icon (generated with `make-icons.py`, already done).
+
+**4. TV launcher changes.** Launcher holds an ordered address list: LAN first (`http://umbrel.local:3901` or the Umbrel IP), public second (`https://flix.<tailnet>.ts.net`); it picks the first that answers `/healthz` (healthz must stay open, nothing else). Sign-in happens inside the served UI (email + password, remember me); the TV keeps the token in the page's own storage. Optional later: a pairing code (TV shows a code, approve on phone) to avoid typing passwords with a remote.
+
+**5. Streaming server exposure (the real design question).** Port 11470 has no auth and torrent/proxy endpoints; it must **never** be labelled for Funnel or exposed publicly.
+- Option A (simplest, recommended first): streaming server stays LAN-only. The TV at home streams directly over the LAN (`http://<umbrel>:11470`, fast, no relay). Off-LAN devices can browse/sign in but cannot play.
+- Option B: add an authenticated reverse proxy inside the `web` container (`/stremio/*` -> `server:11470`, requires a valid account token, streams range requests). Playback then works away from home, BUT all video goes through Tailscale Funnel (bandwidth limits / fair-use, extra latency, relay) and the TV must not use it at home (hairpin through the internet) -> launcher/UI picks the LAN server when on the LAN, `/stremio` when remote.
+- Decide A first; B is a separate step.
+
+**Risks specific to this plan**
+- **TLS trust on the TV:** Funnel certificates are Let's Encrypt (ISRG Root X1). A 2018 webOS 4 CA store may not trust them -> the public address could fail on the TV while LAN works. Must be tested on the real TV (`https://flix.<tailnet>.ts.net/healthz` in the TV browser) before relying on it. That is why LAN-first + public-fallback is in the launcher design.
+- **Public exposure:** Funnel makes the sign-in page reachable from the internet; rate limiting (`throttled()` in Listify) must be copied, and the account/approval flow is the only gate. Streaming server must stay unpublished.
+- **Passwords on a TV remote** are painful (pairing code idea).
+- **Repo rules:** CLAUDE.md wants the Glass theme and a preview before merging to `main`; JoolzFlix is deliberately a TV-style UI, so its login screen is TV-style too (flagged for the owner each time).
+- Everything from the "compat build" section still applies (login screen and account UI must also survive Chromium 53).
+
+**Updated work order (supersedes steps 1-3 where they conflict)**
+1. `src/flix/server.js`: account gate (copy Listify modules), per-user profile store + authenticated `/tf/api`, `/healthz` open, device-aware compat build (see above). Tests: gate refuses unauthenticated `/tf/api` and UI data routes; login throttling; per-user isolation (user A cannot read B's profiles).
+2. UI: login view, "sign out", profile data now loaded from the account; remove "Profile sync" setting; keep Stremio-account (progress sync) feature as is.
+3. Compose: labels + port 3901, `PROXY_AUTH_ADD: "false"`, `POCKETBASE_APP_ID`, `REQUIRE_ACCOUNTS=1`, `extra_hosts` for `host.docker.internal`; version bump + image tag; README/notes.
+4. Launcher (TV 2.0): address list LAN-then-public, health probe, failure screen.
+5. Release order: merge to `main` after green build and owner OK; uninstall old Stremio app (port 11470); install JoolzFlix; wait for Portal Admin to link it; register the public URL in Portal Admin > Apps; verify `https://flix...ts.net` from mobile data shows the sign-in page and that `/tf/api/state` without a token is refused; then TV.
+
+**New open questions**
+a. TV address order: LAN first then public (recommended), or public only?
+b. Streaming away from home: Option A (LAN-only, simplest) or B (authenticated proxy through Funnel)?
+c. Profiles: up to 12 **per JoolzApp account** (recommended; each family member has an account, profiles for kids/guests) or one shared pool of 12 for the whole household?
+d. TV sign-in: typed email/password first, pairing code later?
+e. Slug/public name: `flix` -> `https://flix.<tailnet>.ts.net` fine?
