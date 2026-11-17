@@ -8,12 +8,12 @@
   "packages": [
     {
       "id": "io.stremio.flix.tv",
-      "title": "JoolzFlix",
+      "title": "JoolzTV",
       "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
       "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-flix.json",
       "pool": "main",
-      "shortDescription": "Classic Netflix TV style app for webOS 4: 12 profiles, Torrentio sources, your Umbrel streaming server",
-      "description": "JoolzFlix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the JoolzFlix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode."
+      "shortDescription": "Launcher for your JoolzTV server: Apple TV style interface, profiles and Torrentio sources",
+      "description": "JoolzTV: the TV launcher for your JoolzTV server. It finds your server at home first, then on your public address, and opens the JoolzTV interface (Apple TV style, up to 12 profiles with one JoolzApp account each, Torrentio sources, your own streaming server). The design and features come from the server, so they update without reinstalling this app. Needs the JoolzTV app on your Umbrel."
     }
   ]
 }

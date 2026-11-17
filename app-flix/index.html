@@ -1,23 +1,102 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=1920, initial-scale=1">
-<title>JoolzFlix</title>
-<link rel="stylesheet" href="css/flix.css">
+<title>JoolzTV</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#0b0d12;color:#f5f5f7;font-family:-apple-system,"SF Pro Display","Helvetica Neue","LG Smart UI",Arial,sans-serif;font-size:26px}
+.wrap{position:absolute;left:0;top:0;width:1920px;height:1080px;background:radial-gradient(ellipse at 50% 40%,#1f2a55 0%,#0b0d12 62%);display:flex;align-items:center;justify-content:center;text-align:center}
+.mark{font-size:110px;font-weight:800;letter-spacing:-3px}.mark b{color:#0a84ff}
+.sub{margin-top:22px;font-size:28px;color:rgba(235,235,245,.62);min-height:40px}
+.card{width:900px;padding:54px 60px;border-radius:48px;text-align:left;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,.07));border:2px solid rgba(255,255,255,.22);box-shadow:0 24px 60px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.35)}
+.card h1{font-size:50px;font-weight:800;margin-bottom:10px}.card p{font-size:25px;line-height:1.4;color:rgba(235,235,245,.7);margin-bottom:24px}
+.lbl{font-size:22px;color:rgba(235,235,245,.62);margin:0 0 8px 12px}
+.f{outline:none}
+input{display:block;width:100%;height:72px;margin-bottom:18px;padding:0 28px;border-radius:36px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:27px;font-family:inherit}
+input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5px rgba(255,255,255,.35)}
+.b{display:block;margin-top:12px;padding:16px 40px;border-radius:40px;text-align:center;font-size:28px;font-weight:700;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.2)}
+.b.p{background:#f5f5f7;color:#111}.b.focus{background:#f5f5f7;color:#111;box-shadow:0 0 0 6px rgba(255,255,255,.4)}
+.spin{display:inline-block;width:26px;height:26px;margin-right:14px;border-radius:13px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;vertical-align:-4px;-webkit-animation:s 1s linear infinite;animation:s 1s linear infinite}
+@-webkit-keyframes s{to{-webkit-transform:rotate(360deg)}}@keyframes s{to{transform:rotate(360deg)}}
+</style>
 </head>
 <body>
-<div id="app"></div>
-<div id="toast"></div>
-<script src="config.js"></script>
-<script src="js/polyfills.js"></script>
-<script src="js/store.js"></script>
-<script src="js/profiles.js"></script>
-<script src="js/api.js"></script>
-<script src="js/sync.js"></script>
-<script src="js/nav.js"></script>
-<script src="js/views.js"></script>
-<script src="js/player.js"></script>
-<script src="js/main.js"></script>
+<div class="wrap" id="root"></div>
+<script>
+/* JoolzTV launcher for LG webOS. It only finds your JoolzTV server and opens it: home address first, then the public one.
+   Everything you see after that (design, profiles, player) comes from the server, so updates happen there. ES5 on purpose. */
+(function () {
+  var DEFAULTS = ['http://umbrel.local:3901', 'https://joolztv.macaw-chroma.ts.net'];
+  var root = document.getElementById('root'), cur = null, items = [], booting = false, redHeld = false, timers = [];
+
+  function get() { try { var a = JSON.parse(localStorage.getItem('jtv.addrs')); if (a && a.length) return a; } catch (e) {} return DEFAULTS.slice(); }
+  function set(a) { try { localStorage.setItem('jtv.addrs', JSON.stringify(a)); } catch (e) {} }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function screen(html) { root.innerHTML = html; items = [].slice.call(root.querySelectorAll('.f')); focus(items[0]); }
+  function focus(el) { if (cur) cur.className = cur.className.replace(' focus', ''); cur = el || null; if (cur) cur.className += ' focus'; }
+  function splash(msg) { screen('<div><div class="mark">Joolz<b>TV</b></div><div class="sub"><span class="spin"></span>' + esc(msg) + '</div></div>'); }
+
+  function probe(base, ms) {
+    return new Promise(function (ok, bad) {
+      var done = false, t = setTimeout(function () { if (!done) { done = true; bad(new Error('timeout')); } }, ms);
+      fetch(base.replace(/\/+$/, '') + '/healthz', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        if (done) return; done = true; clearTimeout(t); if (j && j.ok) ok(base); else bad(new Error('not JoolzTV'));
+      }, function (e) { if (done) return; done = true; clearTimeout(t); bad(e); });
+    });
+  }
+  function boot() {
+    if (booting) return; booting = true; clearTimers();
+    var addrs = get(), i = 0, errs = [];
+    function tryNext() {
+      if (i >= addrs.length) { booting = false; return fail(errs); }
+      var a = addrs[i++], home = i === 1;
+      splash(home ? 'Looking for JoolzTV at home…' : 'Trying your public address…');
+      probe(a, home ? 4000 : 9000).then(function (ok) { splash('Opening JoolzTV…'); location.replace(ok.replace(/\/+$/, '') + '/?tv=1'); }, function (e) { errs.push(a + ' (' + (e && e.message || 'no answer') + ')'); tryNext(); });
+    }
+    splash('Starting…');
+    // hold the Red button during the splash to change the addresses
+    timers.push(setTimeout(function () { if (redHeld) { booting = false; settings(); } else tryNext(); }, 1200));
+  }
+  function fail(errs) {
+    screen('<div class="card"><h1>Can\'t reach JoolzTV</h1><p>Checked ' + esc(errs.join(', ')) + '.<br>Make sure your server is on and this TV is on the same network. If only the public address fails with a secure-connection error, this older TV may not trust its certificate; use the home address.</p>' +
+      '<div class="b p f" id="retry">Try again</div><div class="b f" id="chg">Change addresses</div></div>');
+    document.getElementById('retry').onclick = boot; document.getElementById('chg').onclick = settings;
+  }
+  function settings() {
+    var a = get();
+    screen('<div class="card"><h1>JoolzTV addresses</h1><p>The TV tries the home address first, then the public one.</p>' +
+      '<div class="lbl">Home address</div><input id="a1" class="f" value="' + esc(a[0] || '') + '" placeholder="http://umbrel.local:3901">' +
+      '<div class="lbl">Public address (optional)</div><input id="a2" class="f" value="' + esc(a[1] || '') + '" placeholder="https://joolztv.macaw-chroma.ts.net">' +
+      '<div class="b p f" id="save">Save and connect</div><div class="b f" id="reset">Use the defaults</div></div>');
+    document.getElementById('save').onclick = function () {
+      var l = [document.getElementById('a1').value.trim(), document.getElementById('a2').value.trim()].filter(function (x) { return /^https?:\/\//.test(x); });
+      if (!l.length) return; set(l); booting = false; boot();
+    };
+    document.getElementById('reset').onclick = function () { set(DEFAULTS.slice()); booting = false; boot(); };
+  }
+
+  function move(dir) {
+    if (!cur) return focus(items[0]);
+    var r = cur.getBoundingClientRect(), best = null, bd = 1e9;
+    items.forEach(function (el) { if (el === cur) return; var q = el.getBoundingClientRect(), dy = q.top - r.top;
+      if ((dir === 'down' && dy > 4) || (dir === 'up' && dy < -4)) { var d = Math.abs(dy); if (d < bd) { bd = d; best = el; } } });
+    if (best) focus(best);
+  }
+  document.addEventListener('keydown', function (e) {
+    var k = e.keyCode, typing = document.activeElement && document.activeElement.tagName === 'INPUT';
+    if (k === 403) { redHeld = true; return; }
+    if (typing) { if (k === 13 || k === 38 || k === 40 || k === 27 || k === 461) { document.activeElement.blur(); if (k === 38) move('up'); if (k === 40) move('down'); e.preventDefault(); } return; }
+    if (k === 38) { e.preventDefault(); move('up'); } else if (k === 40) { e.preventDefault(); move('down'); }
+    else if (k === 13) { e.preventDefault(); if (cur && cur.tagName === 'INPUT') cur.focus(); else if (cur) cur.click(); }
+    else if (k === 461 || k === 27 || k === 10009 || k === 8) { e.preventDefault(); if (document.getElementById('save')) { booting = false; boot(); } else { try { window.close(); } catch (x) {} } }
+  }, true);
+  document.addEventListener('mouseover', function (e) { var el = e.target; if (el && el.className && /\bf\b/.test(el.className)) focus(el); });
+  document.addEventListener('click', function (e) { if (e.target.tagName === 'INPUT') e.target.focus(); });
+  boot();
+})();
+</script>
 </body>
 </html>

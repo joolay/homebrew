@@ -1,32 +1,27 @@
-# JoolzFlix for LG webOS
+# JoolzTV for LG webOS
 
-Homebrew Channel repository for **JoolzFlix**, a classic Netflix-style app for older LG TVs (tested target: 2018 UK6300PVB, webOS 4.0, Chromium 53).
+Homebrew Channel repository for the **JoolzTV launcher**, a tiny app that opens your JoolzTV server on an older LG TV (tested target: 2018 UK6300PVB, webOS 4.0, Chromium 53).
 
 **Add this repository in Homebrew Channel:**
 ```
 https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/apps.json
 ```
 
-Why a from-scratch app? Current Stremio Web needs WebAssembly (Chromium 57+), which webOS 4.0 lacks; see `docs/NOTES-modern-stremio-web.md`.
-(The earlier "Stremio (Legacy 4.4)" app has been retired and removed from this repository.)
+## How it works
+The interface (Apple TV style glass design, profiles, player, sources) is **not** inside this app. It lives in the JoolzTV Umbrel app
+([joolay/umbrel-apps](https://github.com/joolay/umbrel-apps), `src/joolztv/`). This launcher only:
+1. tries your **home address** first (`http://umbrel.local:3901` by default), then your **public address** (`https://joolztv.macaw-chroma.ts.net`),
+2. checks the server answers (`/healthz`), and
+3. opens it with `?tv=1`, so the server hands the TV the **old-browser (Chromium 53) build** of the interface.
 
-## JoolzFlix (classic Netflix TV style) — `app-flix/`
-A separate app (id `io.stremio.flix.tv`, shown as **JoolzFlix**) styled like the older Netflix TV app: black screen, info panel for the focused title above the rows, square white-framed box art, pop-out left menu (press Left on the first title, or Back). Written for Chromium 53 (no WebAssembly).
+So design changes and new features arrive by updating the Umbrel app; the TV app rarely changes. First run on a new household shows a wizard: sign in with a JoolzApp account,
+add the other household members (one JoolzApp account each, up to 12 profiles), then pick who is watching. Sign-ins last 90 days since you last used the app.
 
-- **Sources: Torrentio only.** Top 3 sources by seeds in each of 4K, 1080p, 720p, Other. "Play" starts the top-seeded 1080p source (then 720p, 4K, other); "Choose source" shows all.
-- Posters/details/episodes: Cinemeta. Subtitles: OpenSubtitles. No Stremio account needed.
-- Playback through your own Stremio streaming server via `http://<server>:11470/<infoHash>/<file>`, with automatic HLS transcoding fallback.
-- **Up to 12 profiles** ("Who's watching?"), each with its own **My List**, **watch progress / Continue Watching** and optional Stremio account. Add/edit/delete under Manage Profiles; switch via the left menu or the avatar top-right.
-- Seasons/episodes, resume, auto-play next episode, playback speed, subtitles.
+- Change the addresses: hold the **Red** button while the splash shows, or choose *Change addresses* on the "Can't reach JoolzTV" screen. Back exits.
+- If only the public address fails with a secure-connection error, an older TV may not trust its certificate: use the home address (use the Umbrel's IP if `umbrel.local` doesn't resolve on the TV).
+- Install: Homebrew Channel (repository above), or `ares-install dist/io.stremio.flix.tv_2.0.0_all.ipk` (app id `io.stremio.flix.tv`, unchanged so it upgrades in place).
 
-Install on the TV: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.5.0_all.ipk`.
-
-## JoolzFlix for Umbrel
-The Umbrel app lives in **[joolay/umbrel-apps](https://github.com/joolay/umbrel-apps)** (`src/flix/`, store entry `joolay-flix/`), not in this repo.
-Install it from your Umbrel's community app store (`https://github.com/joolay/umbrel-apps`).
-It bundles its own Stremio streaming server (published on port 11470, replacing the old Stremio app) and stores profiles, lists and progress on your Umbrel.
-
-Connect the **TV app**: JoolzFlix → Settings → *Profile sync* = `http://umbrel.local:3901`, *Streaming server* = `http://umbrel.local:11470`
-(use the Umbrel's IP address if `umbrel.local` doesn't resolve on the TV).
-
-The UI in `app-flix/` is the single source of truth; the Umbrel app mirrors it with `src/flix/sync-ui.sh` (in the umbrel-apps repo).
+## This repo
+- `app-flix/`: the launcher (one `index.html`, icons, `appinfo.json`).
+- `webosbrew/`: Homebrew Channel files. `dist/`: the IPK. `.github/workflows/release.yml`: builds a release IPK on a `v*` tag.
+- `docs/`: design notes (`PLAN-thin-tv-wrapper.md`) and why modern Stremio Web can't run on webOS 4 (`NOTES-modern-stremio-web.md`).

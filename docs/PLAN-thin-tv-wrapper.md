@@ -1,6 +1,6 @@
 # Plan: thin TV wrapper + single JoolzFlix codebase (NOT built yet)
 
-Status: **notes only, agreed direction, awaiting "go"**. Written 2026-11-17.
+Status: **BUILT (2026-11-17)** - see "Build summary" at the end. Originally written as notes before building.
 
 ## Decision
 Make the webOS TV app a tiny launcher. The whole interface (browse, details, player, profiles, settings) is served by the
@@ -139,3 +139,14 @@ b. Streaming away from home: Option A (LAN-only, simplest) or B (authenticated p
 c. Profiles: up to 12 **per JoolzApp account** (recommended; each family member has an account, profiles for kids/guests) or one shared pool of 12 for the whole household?
 d. TV sign-in: typed email/password first, pairing code later?
 e. Slug/public name: `flix` -> `https://flix.<tailnet>.ts.net` fine?
+
+## Build summary (what was decided and built)
+Owner's answers: (1) TV tries **home first, then public**; public name **`joolztv`** -> `https://joolztv.macaw-chroma.ts.net`. (2) Streaming **always through the signed-in proxy**; sign-in happens when a profile is selected and lasts 90 days since last use. (3) **One JoolzApp account per profile, max 12 profiles per household.** (4) First-run **wizard** asks for a JoolzApp account; the user can then add household members and choose who stays signed in on the TV. No other service sign-ins (Torrentio is built in). (5) **Apple TV glass redesign**, app renamed **JoolzTV**. (6) Glass-style theme accepted.
+
+Built:
+- **umbrel-apps** (`src/joolztv`, `joolay-joolztv/`, branch `claude/torrentflix-umbrel`): `server.js` (JoolzApp account gate copied from Listify, household of <=12 profiles, per-account My List + progress, signed stream proxy `/s/<token>/`, device detection, open `/healthz`), UI in `ui/`, `build.js` (modern + Chromium-53 builds + guards), Dockerfile (multi-stage), compose (TSDProxy labels for `joolztv`, streaming server NOT published), icon via the repo script, tests (`test.js` 35 checks with mock accounts, `test-build.js` 20 guard checks).
+- **homebrew** (this repo): TV app is now a ~100-line launcher (JoolzTV 2.0.0, same app id so it upgrades in place); the old bundled UI was removed.
+
+Not verified (needs the real Umbrel / TV): container runtime; real PocketBase (tests use a stand-in with the same function shape); Portal Admin linking + dashboard tile + registering the public URL; Funnel certificate trust on the 2018 TV; real torrent playback and HLS transcoding through the proxy; Chromium 53 itself (guards + converter, not a real old browser).
+
+Deliberate deviations from umbrel-apps CLAUDE.md (flagged to the owner): own glass styling in `ui/css/app.css` instead of `glass.css`; user preferences (Torrentio link, transcode, TV sign-in choice) are stored on the device/per account file, not yet as `pref.joolztv` rows in PocketBase.
