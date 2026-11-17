@@ -168,3 +168,17 @@ Decisions
   (`household.json.lastActive`, bumped by any signed-in request of any profile, at most every 10 min); then 401 and everyone signs in again. The user record is re-read
   from PocketBase (`getUser`), so a removed or disabled account stops working at once. Old PocketBase tokens are still accepted once and swapped for a session token
   through `x-jtv-renew`. All "Stay signed in" switches are removed from the UI; the token is always kept on the device.
+
+## Notes: skip opening credits / jump to the credit scene (2026-11-17)
+Asked for: a discreet pop-up button that skips opening credits, and another that shows when the end credits roll, to skip to a mid- or end-credit scene.
+
+How it can be known (no public timing database is assumed):
+- Intro: (1) chapters inside the file (names like Intro/Opening/OP/Title sequence) read with ffprobe; (2) a mark the household sets once per show
+  (player menu: "Mark intro start / end"), kept on the server per show and offered on every later episode. No guessing from the picture.
+- End credits and credit scenes: (1) chapters (Credits/Ending/Post-credits/Epilogue); (2) otherwise a look at the picture of the REST of the file once playback
+  reaches the last ~25 %: the server grabs one tiny frame every ~8 s from the tail (a few MB per frame from the torrent), labels each "credits-like" (dark, sparse)
+  or "picture" (bright, detailed), and finds where the credits start and any run of picture inside/after them = a mid- or end-credit scene. Skipped when the download is slow.
+- Canvas on the TV is NOT used (hardware video layers draw black into a canvas on webOS), everything is decided on the server.
+
+UI: one small glass pill, bottom right, above the controls: "Skip intro", "Skip credits", "Extra scene" (OK on the remote presses it while it is showing, it fades after 10 s
+and returns with the controls). For a series "Skip credits" goes to the next episode. Tests: pure classifier tests + a synthetic film made with ffmpeg (picture, credits, scene).
