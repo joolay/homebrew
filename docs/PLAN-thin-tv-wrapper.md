@@ -182,3 +182,11 @@ How it can be known (no public timing database is assumed):
 
 UI: one small glass pill, bottom right, above the controls: "Skip intro", "Skip credits", "Extra scene" (OK on the remote presses it while it is showing, it fades after 10 s
 and returns with the controls). For a series "Skip credits" goes to the next episode. Tests: pure classifier tests + a synthetic film made with ffmpeg (picture, credits, scene).
+
+## Notes: TMDB (2026-11-17)
+Asked for: every feature TMDB can add (key to be supplied later). Server-side only: the key lives in env `TMDB_KEY` or `<data>/tmdb.key` (admin can paste it in Settings; never sent back), the TV never sees it.
+Routes (`tmdb.js`): title details (localised title/summary, logo, backdrop, certification for the region, cast + director, collection, recommendations, status/next episode, credit-scene keywords,
+external ids), season (episode stills), lists (trending/popular/top rated/now playing/upcoming for the region), discover (genre/year/sort), genres, person, multi-search, resolve (TMDB id -> IMDb id).
+Parental: certification -> minimum age by region table; limit = profile `maxAge` (owner sets) and the account's own age when JoolzApp says it is a minor; checked before playing (`POST /api/play-check`).
+IDs: TheIntroDB gets the TMDB id when known. Cinemeta stays the base/fallback; every TMDB feature disappears quietly when there is no key. Attribution line in Settings.
+Tests use a stand-in TMDB server with the real response shapes (docs, not yet the live API).
