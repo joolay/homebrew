@@ -12,8 +12,8 @@
       "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app/icon.png",
       "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest.json",
       "pool": "main",
-      "shortDescription": "Stremio 4.4 frontend for webOS 4.0 TVs. Uses your own streaming server (e.g. Umbrel).",
-      "description": "Stremio 4.4 frontend built for older LG TVs (webOS 4.0, Chromium 53) such as the 2018 UK6300. Modern Stremio Web needs WebAssembly, which these TVs lack, so this bundles the legacy AngularJS app with compatibility polyfills. Signs in to your normal Stremio account (library, addons). No streaming server is included: point it at your own server (e.g. Umbrel) in Settings > Streaming server. Remote Back button supported."
+      "shortDescription": "Legacy Stremio frontend for webOS 4 TVs, using your own streaming server such as Umbrel",
+      "description": "Legacy Stremio frontend built for older LG TVs running webOS 4 such as the 2018 UK6300. Current Stremio Web needs WebAssembly which these TVs lack, so this bundles the older Stremio 4 app with compatibility fixes. Sign in with your normal Stremio account to get your library and addons. No streaming server is included, so set your own, such as Umbrel, under Settings then Streaming server. Use the remote Red and Green buttons to shrink or enlarge the interface."
     }
   ]
 }
