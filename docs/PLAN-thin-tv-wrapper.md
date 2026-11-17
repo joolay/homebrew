@@ -150,3 +150,21 @@ Built:
 Not verified (needs the real Umbrel / TV): container runtime; real PocketBase (tests use a stand-in with the same function shape); Portal Admin linking + dashboard tile + registering the public URL; Funnel certificate trust on the 2018 TV; real torrent playback and HLS transcoding through the proxy; Chromium 53 itself (guards + converter, not a real old browser).
 
 Deliberate deviations from umbrel-apps CLAUDE.md (flagged to the owner): own glass styling in `ui/css/app.css` instead of `glass.css`; user preferences (Torrentio link, transcode, TV sign-in choice) are stored on the device/per account file, not yet as `pref.joolztv` rows in PocketBase.
+
+## Notes: sources screen, preferred quality, household sign-in (2026-11-17)
+Asked for: (1) the source's name is never shown; a nicer setup screen manages its filters; (2) the first-run wizard asks the preferred auto-play definition
+(4K / 1080p / 720p); auto-play always takes the file with the MOST SEEDS in that definition; if that definition is missing, tell the person and show the
+alternatives instead of starting something else silently; (3) "Stay signed in" is not a front-end choice: the BACKEND checks last use, and one person using the
+app keeps the sign-in alive for the whole household.
+
+Decisions
+- Household settings live on the server (`household.json` -> `prefs`): `quality` (4K|1080p|720p) and `sources` (filter set). Any member except view-only can change them;
+  they come down with `GET /api/household`; the device keeps a copy only for start-up. Written with `PUT /api/household/prefs`.
+- Filters (UI wording says "Sources", never the addon name): hide Dolby Vision / HDR / BluRay remux / 3D / unknown quality, maximum file size, audio-language priority,
+  which indexers to use, custom address under "Advanced". CAM and screeners are always hidden. Built into the addon URL by `ui/js/sources.js` (unit-tested).
+- Auto-play order = preferred definition first, then the nearest others (1080p: 1080p,720p,4K,Other; 4K: 4K,1080p,720p,Other; 720p: 720p,1080p,4K,Other).
+  Inside a definition: seeds desc (score only breaks ties). Missing preferred definition -> notice + menu of the alternatives (top 3 per definition), nothing starts alone.
+- Sign-in: the server issues its own session token at login (`s.<user>.<issued>.<mac>`, no expiry inside it). Valid while the HOUSEHOLD was used in the last 90 days
+  (`household.json.lastActive`, bumped by any signed-in request of any profile, at most every 10 min); then 401 and everyone signs in again. The user record is re-read
+  from PocketBase (`getUser`), so a removed or disabled account stops working at once. Old PocketBase tokens are still accepted once and swapped for a session token
+  through `x-jtv-renew`. All "Stay signed in" switches are removed from the UI; the token is always kept on the device.
