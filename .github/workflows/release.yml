@@ -1,0 +1,28 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i -g @webos-tools/cli@3.2.6
+      - name: Package
+        run: |
+          V=${GITHUB_REF_NAME#v}
+          jq --arg v "$V" '.version=$v' app/appinfo.json > t.json && mv t.json app/appinfo.json
+          ares-package --no-minify app -o .
+          IPK=io.stremio.legacy.tv_${V}_all.ipk
+          echo "IPK=$IPK" >> $GITHUB_ENV
+          jq -n --arg v "$V" --arg ipk "$IPK" --arg sha "$(sha256sum $IPK | cut -d' ' -f1)" --argjson size $(stat -c%s $IPK) --arg repo "$GITHUB_REPOSITORY" \
+            '{id:"io.stremio.legacy.tv",version:$v,type:"web",title:"Stremio (Legacy 4.4)",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app/icon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.IPK }}
+            manifest.json

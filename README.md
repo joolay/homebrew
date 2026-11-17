@@ -1,31 +1,35 @@
-# Stremio for webOS 4.0 (LG UK6300PVB) — feasibility notes
+# Stremio (Legacy 4.4) for webOS 4.0
 
-Status: **no working build yet.** This repo currently holds research findings only.
+Frontend-only Stremio for older LG TVs (tested target: 2018 UK6300PVB, webOS 4.0, Chromium 53).
 
-## What I checked
-- `kieranbrown/stremio-webos` (Theater frontend + official streaming server, webOS 5+ only; its README says webOS 4.x is unsupported).
-- Official `Stremio/stremio-web` v5.1.0 (installs and builds with Node 22 / pnpm 11).
+**Why 4.4?** Current Stremio Web needs WebAssembly (Chromium 57+). The legacy Stremio 4.4 web shell is plain
+AngularJS/JavaScript, so it runs on Chromium 53 with a few small polyfills. It still talks to the live Stremio API,
+so your account, library and addons work. See `docs/NOTES-modern-stremio-web.md` for why modern builds can't run.
 
-## Why webOS 4.0 is hard
-| Piece | webOS 4.0 (2018, UK6300) | Stremio needs |
-|---|---|---|
-| Web engine | Chromium 53 | Chromium 57+ for WebAssembly |
-| Service runtime | Node.js 0.12 | Node 8+ (streaming server) |
+**No server is bundled.** Playback uses your own streaming server (e.g. Umbrel's Stremio app).
 
-1. **WebAssembly**: `stremio_core_web_bg.wasm` (5.5 MB) is the app's core. Chromium 53 cannot run it.
-2. **WASM→JS fallback**: `wasm2js` (binaryen 123) refuses the module: *"modules with multiple tables are not supported"* (wasm-bindgen's externref table). Even if worked around, the result would be tens of MB of JS on a 2018 TV SoC — likely unusably slow. Reproduce with `scripts/probe-core-wasm.sh`.
-3. **Streaming server**: the bundled server cannot run on Node 0.12, so it must live off-TV (PC/NAS/Docker) anyway.
+## What's changed vs. upstream 4.4 (`app.strem.io/shell-v4.4`)
+- Bundled locally (stable, can't break when the website changes; no remote loading).
+- `polyfills.js`: Object.values/entries, padStart, flat, Promise.finally, AbortController, etc. for Chromium 53.
+- `config.js`: default streaming-server URL (edit before packaging, or change in-app: Settings → Streaming server).
+- `tv.js`: remote Back button (key 461) → history back.
+- `calendar-fallback.css`: flexbox fallback for the one CSS-grid screen (calendar).
 
-## Realistic options
-- Run the streaming server elsewhere and use an external device (Fire Stick/Chromecast) or cast to the TV.
-- Experimental: hand-patch the wasm to drop the externref table, then wasm2js + Babel/core-js for Chrome 53 (low odds, unverifiable without the TV).
-- Improve the webOS 5+ build instead.
+## Install
+Prebuilt IPK: `dist/io.stremio.legacy.tv_1.0.0_all.ipk`
+```sh
+npm i -g @webos-tools/cli@3.2.6
+ares-setup-device                       # add your TV (Developer Mode app on the TV)
+ares-install --device tv dist/io.stremio.legacy.tv_1.0.0_all.ipk
+ares-launch  --device tv io.stremio.legacy.tv
+```
+Or with Homebrew Channel (rooted TV): install the IPK from the release / add `webosbrew/apps.json` as a repo once hosted.
 
-## Update: WASM-patching attempt (frontend-only scope; server dropped, Umbrel server assumed)
-Removing the server doesn't remove the blocker — the frontend core itself is WASM.
-Tried: rewrite `stremio_core_web_bg.wasm` so the externref table becomes three imported JS functions
-(`table.get/set/grow $1` → `call`; only 54/47/1 uses, so this part is easy and the patched module validates and assembles).
-Then `wasm2js --all-features` (binaryen 123) fails inside its own lowering with validator errors
-(`local.set's value type must be correct` without `-O`; `i64 != i32` with `-O`) — remaining 188 `externref`
-locals/params are the likely cause. Output file was empty. Next steps if continued: also lower externref locals to i32
-handles (rewrite in WAT), then retry; and even on success expect a very large, slow asm.js blob on a 2018 TV.
+## Configure your Umbrel server
+Edit `app/config.js` (`http://<umbrel-ip>:11470`), then `ares-package --no-minify app -o dist`.
+Use the Umbrel's **IP address** if `umbrel.local` (mDNS) doesn't resolve on the TV.
+
+## Known limits (untested on real hardware — please report)
+- Smoke-tested only in desktop Chromium; not yet on a real UK6300PVB.
+- HEVC/AC3 support depends on the TV; the Umbrel server can transcode if enabled.
+- Stremio 4.4 is unmaintained upstream; new features of Stremio 5 aren't available.
