@@ -16,11 +16,11 @@ so your account, library and addons work. See `docs/NOTES-modern-stremio-web.md`
 - `calendar-fallback.css`: flexbox fallback for the one CSS-grid screen (calendar).
 
 ## Install
-Prebuilt IPK: `dist/io.stremio.legacy.tv_1.0.5_all.ipk`
+Prebuilt IPK: `dist/io.stremio.legacy.tv_1.0.6_all.ipk`
 ```sh
 npm i -g @webos-tools/cli@3.2.6
 ares-setup-device                       # add your TV (Developer Mode app on the TV)
-ares-install --device tv dist/io.stremio.legacy.tv_1.0.5_all.ipk
+ares-install --device tv dist/io.stremio.legacy.tv_1.0.6_all.ipk
 ares-launch  --device tv io.stremio.legacy.tv
 ```
 Or with Homebrew Channel (rooted TV): install the IPK from the release / add this repository URL in Homebrew Channel settings: `https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/apps.json`
