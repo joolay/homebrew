@@ -1,10 +1,10 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "vendor": "community",
   "type": "web",
   "main": "index.html",
-  "title": "Torrentflix",
+  "title": "JoolzFlix",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "bgColor": "#141414",

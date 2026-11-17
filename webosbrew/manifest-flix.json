@@ -1,16 +1,16 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "type": "web",
-  "title": "Torrentflix",
-  "appDescription": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the Torrentflix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
-  "description": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the Torrentflix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
+  "title": "JoolzFlix",
+  "appDescription": "JoolzFlix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the JoolzFlix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
+  "description": "JoolzFlix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the JoolzFlix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.4.1_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.5.0_all.ipk",
   "ipkHash": {
-    "sha256": "04372bf812112df5918719c79a7888af0f346baf79d1705f30178dce6fdfd91d"
+    "sha256": "9da6600194c10722acd675e813a8f58b68e7dbb8f2029ebe9729a9547d49fcc8"
   },
-  "ipkSize": 31196
+  "ipkSize": 32112
 }

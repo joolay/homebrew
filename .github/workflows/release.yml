@@ -20,7 +20,7 @@ jobs:
           IPK=io.stremio.flix.tv_${V}_all.ipk
           echo "IPK=$IPK" >> $GITHUB_ENV
           jq -n --arg v "$V" --arg ipk "$IPK" --arg sha "$(sha256sum $IPK | cut -d' ' -f1)" --argjson size $(stat -c%s $IPK) --arg repo "$GITHUB_REPOSITORY" \
-            '{id:"io.stremio.flix.tv",version:$v,type:"web",title:"Torrentflix",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app-flix/largeIcon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
+            '{id:"io.stremio.flix.tv",version:$v,type:"web",title:"JoolzFlix",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app-flix/largeIcon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
       - uses: softprops/action-gh-release@v2
         with:
           files: |
