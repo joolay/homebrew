@@ -19,7 +19,7 @@ add the other household members (one JoolzApp account each, up to 12 profiles), 
 
 - Change the addresses: hold the **Red** button while the splash shows, or choose *Change addresses* on the "Can't reach JoolzTV" screen. Back exits.
 - If only the public address fails with a secure-connection error, an older TV may not trust its certificate: use the home address (use the Umbrel's IP if `umbrel.local` doesn't resolve on the TV).
-- Install: Homebrew Channel (repository above), or `ares-install dist/io.stremio.flix.tv_2.0.0_all.ipk` (app id `io.stremio.flix.tv`, unchanged so it upgrades in place).
+- Install: Homebrew Channel (repository above), or `ares-install dist/io.stremio.flix.tv_2.0.1_all.ipk` (app id `io.stremio.flix.tv`, unchanged so it upgrades in place).
 
 ## This repo
 - `app-flix/`: the launcher (one `index.html`, icons, `appinfo.json`).
