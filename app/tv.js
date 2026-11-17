@@ -4,17 +4,16 @@
   try { var s = parseFloat(localStorage.getItem(KEY)); if (s >= 0.8 && s <= 3) zoom = s; } catch (e) {}
 
   function apply() {
-    var h = document.documentElement;
-    h.style.zoom = zoom;                       // Chromium 53 supports CSS zoom
+    // Scale via root font-size (the UI is rem-based). Avoids CSS zoom, which can break pointer hit-testing on old Chromium.
+    document.documentElement.style.setProperty('font-size', (16 * zoom) + 'px', 'important');
     try { localStorage.setItem(KEY, zoom); } catch (e) {}
   }
   function show() {
     if (!toast) {
       toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;left:50%;bottom:5%;transform:translateX(-50%);z-index:99999;padding:8px 18px;background:rgba(0,0,0,.8);color:#fff;font:18px sans-serif;border-radius:6px;pointer-events:none;zoom:' + (1 / zoom);
+      toast.style.cssText = 'position:fixed;left:50%;bottom:5%;transform:translateX(-50%);z-index:99999;padding:8px 18px;background:rgba(0,0,0,.8);color:#fff;font:24px sans-serif;border-radius:6px;pointer-events:none;';
       document.body.appendChild(toast);
     }
-    toast.style.zoom = 1 / zoom;
     toast.textContent = 'Zoom ' + Math.round(zoom * 100) + '%  (Red = smaller, Green = larger, Yellow = reset)';
     toast.style.display = 'block';
     clearTimeout(show.t); show.t = setTimeout(function () { toast.style.display = 'none'; }, 2500);
@@ -23,7 +22,7 @@
 
   apply();
   document.addEventListener('keydown', function (e) {
-    if (e.keyCode === 461) {                   // Back
+    if (e.keyCode === 461 || e.keyCode === 10009) {   // Back
       e.preventDefault();
       if (history.length > 1) history.back();
     } else if (e.keyCode === 403) { e.preventDefault(); set(zoom - 0.1); }   // Red
@@ -71,3 +70,14 @@
     document.addEventListener(n, reapply, true);
   });
 })();
+
+/* Remote Rewind (412) / Fast-forward (417): step playback speed down/up. */
+document.addEventListener('keydown', function (e) {
+  if (e.keyCode !== 412 && e.keyCode !== 417) return;
+  var v = document.querySelector('video'); if (!v || !window.__tvSetRate) return;
+  e.preventDefault();
+  var rates = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2], cur = v.playbackRate || 1, i = 0;
+  for (var k = 0; k < rates.length; k++) if (Math.abs(rates[k] - cur) < 0.01) i = k;
+  i = Math.max(0, Math.min(rates.length - 1, i + (e.keyCode === 417 ? 1 : -1)));
+  window.__tvSetRate(v, rates[i]);
+}, true);
