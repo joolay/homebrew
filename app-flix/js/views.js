@@ -344,7 +344,7 @@ var Views = (function () {
       '<div class="srow f" data-act="resettio">Reset Torrentio link to default</div>' +
       '<div class="lbl">PROFILE SYNC (Torrentflix on your Umbrel)</div>' +
       (Sync.webMode() ? '<div class="srow">Profiles, lists and progress are stored on your Umbrel automatically. ' + esc(Sync.status()) + '</div>' :
-        '<input id="syncurl" class="field f" value="' + esc(Store.get('syncurl', '')) + '" placeholder="http://umbrel.local:11580  (leave empty to keep profiles on this TV only)">' +
+        '<input id="syncurl" class="field f" value="' + esc(Store.get('syncurl', '')) + '" placeholder="http://umbrel.local:3901  (leave empty to keep profiles on this TV only)">' +
         '<div class="srow f" data-act="savesync">Save and sync now</div><div class="srow">' + esc(Sync.status()) + '</div>') +
       '<div class="lbl">STREAMING SERVER (your Umbrel)</div><input id="srv" class="field f" value="' + esc(Api.server()) + '" placeholder="http://192.168.1.50:11470">' +
       '<div class="srow f" data-act="saveserver">Save server address</div>' +

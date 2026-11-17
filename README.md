@@ -44,14 +44,11 @@ A separate app (id `io.stremio.flix.tv`, shown as **Torrentflix**) styled like t
 - **Up to 12 profiles** ("Who's watching?"), each with its own **My List**, **watch progress / Continue Watching** and optional Stremio account. Add/edit/delete under Manage Profiles; switch via the left menu or the avatar top-right.
 - Seasons/episodes, resume, auto-play next episode, playback speed, subtitles.
 
-Install on the TV: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.4.0_all.ipk`.
+Install on the TV: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.4.1_all.ipk`.
 
-## Torrentflix for Umbrel — `joolay-torrentflix/` + `umbrel/`
-The same interface as a self-hosted app (open it from any browser; scales to the window), bundled with its own **Stremio streaming server** (`stremio/server`), plus a tiny wrapper (`umbrel/server.js`, no dependencies) that stores **profiles, My Lists and watch progress on your Umbrel** so every device shares them (newest entry wins).
+## Torrentflix for Umbrel
+The Umbrel app lives in **[joolay/umbrel-apps](https://github.com/joolay/umbrel-apps)** (, store entry ), not here. Install it from your Umbrel's community app store ().
+It uses the streaming server of the Stremio app (, port 11470) and stores profiles, lists and progress on your Umbrel.
 
-Install: Umbrel → App Store → ⋯ → *Community App Stores* → add `https://github.com/joolay/homebrew` → install **Torrentflix**.
-- Web UI: `http://umbrel.local:11580` (also `:11582` directly, no Umbrel login proxy). Streaming server: `:11581`.
-- No login of its own: anyone on your LAN can open it.
-- It downloads the Torrentflix files from this repo's `main` branch on start (`TF_REF` in the compose file; cached for offline restarts). Pin `TF_REF` to a tag/commit to stop auto-updates.
-
-Connect the **TV app** to it: Torrentflix → Settings → *Profile sync* = `http://umbrel.local:11582`, and *Streaming server* = `http://umbrel.local:11581` (use the Umbrel's IP if `umbrel.local` doesn't resolve on the TV).
+Connect the **TV app**: Torrentflix → Settings → *Profile sync* = , *Streaming server* =  (use the Umbrel's IP if  doesn't resolve on the TV).
+The UI in  is the single source; the Umbrel app mirrors it with .
