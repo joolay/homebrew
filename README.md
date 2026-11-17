@@ -20,3 +20,12 @@ Status: **no working build yet.** This repo currently holds research findings on
 - Run the streaming server elsewhere and use an external device (Fire Stick/Chromecast) or cast to the TV.
 - Experimental: hand-patch the wasm to drop the externref table, then wasm2js + Babel/core-js for Chrome 53 (low odds, unverifiable without the TV).
 - Improve the webOS 5+ build instead.
+
+## Update: WASM-patching attempt (frontend-only scope; server dropped, Umbrel server assumed)
+Removing the server doesn't remove the blocker — the frontend core itself is WASM.
+Tried: rewrite `stremio_core_web_bg.wasm` so the externref table becomes three imported JS functions
+(`table.get/set/grow $1` → `call`; only 54/47/1 uses, so this part is easy and the patched module validates and assembles).
+Then `wasm2js --all-features` (binaryen 123) fails inside its own lowering with validator errors
+(`local.set's value type must be correct` without `-O`; `i64 != i32` with `-O`) — remaining 188 `externref`
+locals/params are the likely cause. Output file was empty. Next steps if continued: also lower externref locals to i32
+handles (rewrite in WAT), then retry; and even on success expect a very large, slow asm.js blob on a 2018 TV.
