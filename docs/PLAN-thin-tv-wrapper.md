@@ -58,7 +58,7 @@ The player stays in the served UI (it is the TV's normal HTML5 `<video>`, not a 
 ## Open questions (ask before/while building)
 1. Is serving the full UI on open port 3901 acceptable? (alternative: shared-secret token in the launcher URL, more work, still LAN-only).
 2. Keep the TV address default as `umbrel.local` or ask for an IP on first run (mDNS can fail on some TVs)?
-3. Chromium-53 guard: lint-only (simple) or Babel build step (also transpiles/polyfills automatically)?
+3. Chromium-53 guard: **recommended = server-side device detection + a separate compat build (see "Device detection and the compat build" below)**; confirm.
 4. Slug stays `flix` (`joolay-flix`) — confirm, since ids cannot change after release.
 5. Merge of the current Umbrel branch to `main` is still pending the user's "merge JoolzFlix" (repo rule: green build + user confirmation; Glass preview skipped because JoolzFlix is deliberately not Glass-themed).
 
@@ -67,3 +67,29 @@ TV: previous IPKs stay in git history (`dist/`); Homebrew Channel manifest can p
 
 ## Not changing
 Torrentio-only sources with top-3-by-seeds per resolution; Cinemeta metadata; OpenSubtitles; 12 local profiles with Umbrel sync; streaming server on 11470.
+
+## Device detection and the compat build (added after discussion)
+Idea: write the UI once in modern code; the Umbrel server detects old TV browsers and serves them an automatically converted copy.
+
+**Detection (in `src/flix/server.js`, on every page request):**
+- LG webOS TV browser User-Agent contains `Web0S` / `webOS` (webOS 4 reports `Chrome/53`). Also treat any Chrome/Chromium major version below ~70 as "compat".
+- The launcher adds `?tv=1` as a belt-and-braces signal; `?compat=1` / `?modern=1` override it for testing.
+- Respond with `Vary: User-Agent` and `Cache-Control: no-cache`; the two builds live under different folders (`/app/dist/modern`, `/app/dist/compat`), same URLs.
+
+**Two builds from one source, made when the Docker image is built (not at request time):**
+- JS: Babel `preset-env` with `targets: chrome 53` + core-js polyfills (Object.entries, padStart, Promise.finally, etc.) -> ES5 bundle. async/await, spread, optional chaining, classes all get converted.
+- CSS: PostCSS (`postcss-preset-env`, browserslist `chrome 53`) adds prefixes and converts custom properties / modern colour syntax where possible.
+- Modern build for browsers/phones/PCs keeps modern output (smaller, faster).
+
+**What this does NOT fix (so we still need rules + checks):**
+- Layout features Chromium 53 lacks cannot be converted: CSS grid, `gap` on flexbox, `aspect-ratio`, `position: sticky`, `inset`, `:is()/:where()`, container queries, `backdrop-filter`. Rule: the source CSS only uses flexbox/absolute layout (as today), or provides an explicit fallback.
+- Missing platform APIs that cannot be polyfilled: WebAssembly, ResizeObserver, IntersectionObserver edge cases, service workers (http, not secure context), modern media/MSE features. Rule: no new dependence on them without a TV fallback.
+- Bigger/slower bundles on the TV (polyfills) - measure memory; the TV has already restarted for memory once.
+
+**CI guards (fail the image build):**
+1. Compat build must produce syntax-valid ES5 (parse with an ES5 parser, e.g. acorn `ecmaVersion: 5`).
+2. Stylelint `plugin/no-unsupported-browser-features` with `browsers: chrome 53` on the CSS source.
+3. Stronger, optional: run the compat build in a real old Chromium (~r416k Linux snapshot, Chrome 53) under xvfb in CI and click through the main screens. Needs a snapshot download; try it when building, may not be reliable.
+4. Deliberate-failure test: a bad snippet (grid, async/await without polyfill) must make CI red.
+
+**Consequences for the plan:** step 4 becomes "compat build + CI guards"; step 2 moves UI source to `src/flix/ui/` (source) with `build.js` producing `dist/modern` and `dist/compat`; `server.js` gains `pickBuild(req)`; Dockerfile gets a build stage (`node` + Babel/PostCSS), runtime stage serves only the output. Launcher stays unchanged. Still on the real TV: only the user can confirm final behaviour.
