@@ -1,1 +1,14 @@
-{"id":"io.stremio.legacy.tv","version":"1.0.0","vendor":"community","type":"web","main":"index.html","title":"Stremio (Legacy 4.4)","icon":"icon.png","largeIcon":"icon.png","bgColor":"#0c0b11","resolution":"1920x1080","disableBackHistoryAPI":true,"inspectable":true}
+{
+  "id": "io.stremio.legacy.tv",
+  "version": "1.0.1",
+  "vendor": "community",
+  "type": "web",
+  "main": "index.html",
+  "title": "Stremio (Legacy 4.4)",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "bgColor": "#0c0b11",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "inspectable": true
+}

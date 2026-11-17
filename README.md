@@ -12,15 +12,15 @@ so your account, library and addons work. See `docs/NOTES-modern-stremio-web.md`
 - Bundled locally (stable, can't break when the website changes; no remote loading).
 - `polyfills.js`: Object.values/entries, padStart, flat, Promise.finally, AbortController, etc. for Chromium 53.
 - `config.js`: default streaming-server URL (edit before packaging, or change in-app: Settings → Streaming server).
-- `tv.js`: remote Back button (key 461) → history back.
+- `tv.js`: remote Back button (key 461) → history back; TV zoom (default 150%, set in `config.js`; Red = smaller, Green = larger, Yellow = reset, remembered).
 - `calendar-fallback.css`: flexbox fallback for the one CSS-grid screen (calendar).
 
 ## Install
-Prebuilt IPK: `dist/io.stremio.legacy.tv_1.0.0_all.ipk`
+Prebuilt IPK: `dist/io.stremio.legacy.tv_1.0.1_all.ipk`
 ```sh
 npm i -g @webos-tools/cli@3.2.6
 ares-setup-device                       # add your TV (Developer Mode app on the TV)
-ares-install --device tv dist/io.stremio.legacy.tv_1.0.0_all.ipk
+ares-install --device tv dist/io.stremio.legacy.tv_1.0.1_all.ipk
 ares-launch  --device tv io.stremio.legacy.tv
 ```
 Or with Homebrew Channel (rooted TV): install the IPK from the release / add this repository URL in Homebrew Channel settings: `https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/apps.json`
