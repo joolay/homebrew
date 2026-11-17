@@ -75,10 +75,14 @@ var Player = (function () {
     v.addEventListener('playing', function () { if (!alive()) return; sess.gotTime = true; spin(''); say(''); sess.failed = false; reapplyRate(); setPlayLabel(); showUi(); });
     v.addEventListener('waiting', function () { if (!alive()) return; clearTimeout(sess.buffT); sess.buffT = setTimeout(function () { if (alive() && !v.paused) spin('Buffering…'); }, 700); });
     v.addEventListener('canplay', function () { if (alive()) { clearTimeout(sess.buffT); spin(''); } });
-    v.addEventListener('pause', function () { if (alive()) { setPlayLabel(); showUi(true); save(); } });
+    v.addEventListener('pause', function () { if (alive()) { setPlayLabel(); showUi(true); save(false, true); } });
     v.addEventListener('play', function () { if (alive()) setPlayLabel(); });
     v.addEventListener('seeked', function () { if (alive()) reapplyRate(); });
-    v.addEventListener('ended', function () { if (!alive()) return; sess.ended = true; save(true); close(); Views.pop(); });
+    v.addEventListener('ended', function () {
+      if (!alive()) return; sess.ended = true; save(true, true);
+      var n = sess.info.getNext && sess.info.getNext(sess.info.videoId || sess.info.id);
+      if (n) startUpNext(n); else { close(); Views.pop(); }
+    });
     v.addEventListener('error', function () {
       if (!alive()) return;
       var code = v.error ? v.error.code : 0;
@@ -87,6 +91,17 @@ var Player = (function () {
     sess.tick = setInterval(function () { if (alive()) update(); }, 500);
     // if nothing starts within 45 s, fall back
     sess.watchdog = setTimeout(function () { if (alive() && !sess.gotTime && !sess.failed && sess.streams.length) next('Taking too long to start'); }, 45000);
+  }
+  function startUpNext(n) {
+    S.upnext = { n: n, left: 8 };
+    function render() { if (S && S.upnext) say('Up next: ' + n.sub + (n.epTitle ? ' · ' + n.epTitle : '') + '\nStarting in ' + S.upnext.left + 's  –  OK to play now, Back to stop'); }
+    render();
+    S.upnext.timer = setInterval(function () { if (!S || !S.upnext) return; S.upnext.left--; if (S.upnext.left <= 0) playNext(); else render(); }, 1000);
+  }
+  function playNext() {
+    if (!S || !S.upnext) return;
+    var info = Object.assign({}, S.info, S.upnext.n); delete info.pick; info.startMs = 0; delete info._direct;
+    close(); Views.pop(); open(info);
   }
   function reapplyRate() { if (S && S.v && Math.abs(S.v.playbackRate - S.rate) > 0.01) { try { S.v.playbackRate = S.rate; } catch (e) {} } }
   function setPlayLabel() { var b = $('#bplay'); if (b && S) b.textContent = S.v.paused ? '▶ Play' : '❚❚ Pause'; }
@@ -100,17 +115,19 @@ var Player = (function () {
     $('#tcur').textContent = Views.fmtTime(t * 1000); $('#tdur').textContent = Views.fmtTime(d * 1000);
     if (Date.now() - S.lastSave > 10000 && !v.paused) save();
   }
-  function save(done) {
+  function save(done, force) {
     if (!S || !S.v || !isFinite(S.v.duration) || !S.v.duration) return;
     var i = S.info, t = S.v.currentTime * 1000, d = S.v.duration * 1000; S.lastSave = Date.now();
     if (t < 20000 && !done) return;
     var mm = /^([^:]*):(\d+):(\d+)$/.exec(i.videoId || ''), isDone = !!done || t / d > 0.93;
+    if (force || Date.now() - (S.lastSync || 0) > 60000) { S.lastSync = Date.now(); Api.syncProgress(i, t, d, isDone); }
     Resume.put(i.videoId || i.id, { type: i.type, id: i.id, videoId: i.videoId || i.id, name: i.title, poster: i.poster, t: done ? d : t, d: d, ts: Date.now(), done: isDone,
       season: mm ? +mm[2] : undefined, episode: mm ? +mm[3] : undefined });
   }
   function cleanup() {
     if (!S) return;
-    save();
+    save(false, !S.ended);
+    if (S.upnext) clearInterval(S.upnext.timer);
     var v = S.v; clearInterval(S.tick); clearTimeout(S.uiT); clearTimeout(S.buffT); clearTimeout(S.watchdog);
     try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
     S = null;
@@ -189,6 +206,7 @@ var Player = (function () {
   /* key handling: returns true when the key was consumed */
   function key(code, e) {
     if (!S || Views.hasMenu() || Views.current().name !== 'player') return false;
+    if (S.upnext) { if (code === 13) { playNext(); return true; } return false; }
     var cur = Nav.cur(), onSeek = !cur || cur.id === 'seek' || !S.ui;
     if (code === 415 || code === 19 || code === 179) { if (code === 415 && !S.v.paused) return true; if (code === 19 && S.v.paused) return true; toggle(); return true; }
     if (code === 412) { seekBy(-30); return true; }

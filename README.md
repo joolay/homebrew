@@ -44,5 +44,7 @@ Stremio is used only as a **source**: your account, addons, library and stream l
 - Player: seek with Left/Right, OK to pause, Speed, Subtitles (addon subtitles), Sources; resume and Continue Watching.
 - Falls back to Umbrel HLS transcoding automatically if a file will not play directly.
 - Settings: server address + connection test, always-transcode toggle, extra addon URLs, sign in/out.
-- Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.0.0_all.ipk`.
-- Not yet: syncing watch progress back to your Stremio account, adding/removing library items.
+- Watch progress syncs to your Stremio account (pause / every minute / finish; can be switched off in Settings), and Continue Watching merges your account with this TV.
+- "+ My List" on any title adds/removes it in your Stremio library.
+- Series auto-play the next episode with an "Up next" countdown (OK = now, Back = stop).
+- Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.1.0_all.ipk`.

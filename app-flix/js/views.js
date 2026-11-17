@@ -154,11 +154,13 @@ var Views = (function () {
     var heroHtml = '<div class="hero" id="hero"></div>';
     main.innerHTML = heroHtml + '<div id="rows"></div>';
     var rows = main.querySelector('#rows'), heroSet = false, slots = [];
-    var cont = kind === 'home' ? continueItems() : [];
-    if (cont.length) {
-      var slot0 = document.createElement('div'); slot0.innerHTML = rowHtml('Continue Watching', cont.map(function (r) { return { type: r.type, id: r.id, name: r.name, poster: r.poster, _resume: r }; }), function (m) { return { pct: m._resume.t / m._resume.d }; });
-      rows.appendChild(slot0);
-      if (!heroSet) { heroSet = true; setHero(el, cont[0].poster ? { type: cont[0].type, id: cont[0].id, name: cont[0].name, background: null, poster: cont[0].poster } : null); }
+    if (kind === 'home') {
+      var slot0 = document.createElement('div'); rows.appendChild(slot0);
+      continueItems().then(function (cont) {
+        if (token !== browseToken || !cont.length) return;
+        slot0.innerHTML = rowHtml('Continue Watching', cont.map(function (r) { return { type: r.type, id: r.id, name: r.name, poster: r.poster, _resume: r }; }), function (m) { return { pct: m._resume.t / m._resume.d }; });
+        Nav.hydrate();
+      });
     }
     defs.forEach(function (d, i) { var s = document.createElement('div'); rows.appendChild(s); slots.push(s); });
     var pending = defs.length;
@@ -177,7 +179,11 @@ var Views = (function () {
     Nav.hydrate();
   }
   function continueItems() {
-    return Resume.list().slice(0, 20);
+    return Api.getContinue().catch(function () { return []; }).then(function (remote) {
+      var map = {};
+      remote.concat(Resume.list()).forEach(function (r) { var o = map[r.id]; if (!o || (r.ts || 0) > (o.ts || 0)) map[r.id] = r; });
+      return Object.keys(map).map(function (k) { return map[k]; }).sort(function (x, y) { return (y.ts || 0) - (x.ts || 0); }).slice(0, 20);
+    });
   }
   function setHero(el, m) {
     var hero = el.querySelector('#hero'); if (!hero) return;
@@ -227,7 +233,7 @@ var Views = (function () {
   function detail(type, id, seed) {
     var el = mount('detail', '<div class="detail"><div class="bg img" data-keep="1" data-bg="' + esc(seed && (seed.background || seed.poster) || '') + '"></div><div class="shade"></div><div class="vs" id="dmain"><div class="info"><h1 class="title-big">' + esc(seed && seed.name || '') + '</h1><div class="meta">Loading…</div></div></div></div>');
     Nav.hydrate();
-    Api.ensure().then(function () { return Api.getMeta(type, id); }).then(function (m) {
+    Api.ensure().then(function () { return Promise.all([Api.getMeta(type, id), Api.getLibraryAll().catch(function () { return []; })]); }).then(function (r) { var m = r[0];
       if (stack[stack.length - 1].el !== el) return;
       renderDetail(el, type, id, m, seed);
     }).catch(function (e) {
@@ -243,11 +249,19 @@ var Views = (function () {
   }
   function renderDetail(el, type, id, m, seed) {
     var isSeries = type === 'series' && m.videos && m.videos.length, S = isSeries ? seasonsOf(m) : null;
-    var last = Resume.lastFor(id), playVid = id, playLabel = '▶ Play', start = 0, sub = '';
-    var baseInfo = { type: type, id: id, title: m.name, poster: m.poster };
+    var l1 = Resume.lastFor(id), l2 = Api.remoteLast(id), last = (l2 && (!l1 || l2.ts > (l1.ts || 0))) ? l2 : l1, playVid = id, playLabel = '▶ Play', start = 0, sub = '';
+    var flat = [];
+    function getNext(vid) {
+      for (var q = 0; q < flat.length - 1; q++) if (flat[q].id === vid) {
+        var n = flat[q + 1]; if (n.season === 0 && flat[q].season > 0) return null;
+        return { videoId: n.id, sub: 'S' + n.season + ':E' + n.episode, epTitle: n.title || n.name, startMs: 0 };
+      }
+      return null;
+    }
+    var baseInfo = { type: type, id: id, title: m.name, poster: m.poster, getNext: isSeries ? getNext : null };
     var season = S ? (S.keys.filter(function (k) { return k > 0; })[0] || S.keys[0]) : null;
     if (isSeries) {
-      var flat = []; S.keys.forEach(function (k) { flat = flat.concat(S.by[k]); });
+      S.keys.forEach(function (k) { flat = flat.concat(S.by[k]); });
       var first = flat.filter(function (v) { return v.season > 0; })[0] || flat[0];
       playVid = first.id; sub = 'S' + first.season + ':E' + first.episode; season = first.season != null ? first.season : season;
       if (last) {
@@ -261,7 +275,8 @@ var Views = (function () {
     var h = '<div class="info">' + (m.logo ? '<div class="logoimg" data-bg="' + esc(m.logo) + '" data-keep="1"></div>' : '<h1 class="title-big">' + esc(m.name) + '</h1>') +
       '<div class="meta">' + meta1(m) + '</div><div class="desc" style="max-height:170px">' + esc(m.description || '') + '</div>' +
       '<div class="btns"><div class="btn f" data-act="play" data-k="' + k + '">' + playLabel + (isSeries && sub ? ' ' + sub : '') + '</div>' +
-      '<div class="btn f" data-act="play" data-k="' + k2 + '">Choose source</div></div></div>';
+      '<div class="btn f" data-act="play" data-k="' + k2 + '">Choose source</div>' +
+      '<div class="btn f" data-act="togglelib" id="libbtn">' + (Api.inLibrary(id) ? '✓ In My List' : '+ My List') + '</div></div></div>';
     if (isSeries) {
       h += '<div class="eps" id="eps"><div class="chips" id="seasons">';
       S.keys.forEach(function (s) { h += '<span class="chip f' + (s === season ? ' on' : '') + '" data-act="season" data-s="' + s + '">' + (s === 0 ? 'Specials' : 'Season ' + s) + '</span>'; });
@@ -277,7 +292,8 @@ var Views = (function () {
   function renderEpisodes(el, season) {
     var D = el._detail, list = el.querySelector('#eplist'), eps = D.S.by[season] || [], h = '';
     eps.forEach(function (v) {
-      var r = Resume.get(v.id), pct = r && r.d ? Math.min(1, r.t / r.d) : 0;
+      var r = Resume.get(v.id), rl = Api.remoteLast(D.id); if (rl && rl.videoId === v.id && (!r || rl.ts > (r.ts || 0))) r = rl;
+      var pct = r && r.d ? Math.min(1, r.t / r.d) : 0;
       var info = Object.assign({}, D.base, { videoId: v.id, startMs: r && !r.done ? r.t : 0, sub: 'S' + v.season + ':E' + v.episode, epTitle: v.title || v.name });
       h += '<div class="ep f" data-act="play" data-k="' + ref(info) + '"><div class="img" data-bg="' + esc(v.thumbnail || D.m.background || '') + '"></div>' +
         '<div class="t">' + (v.episode || v.number || '') + '. ' + esc(v.title || v.name || 'Episode') + '</div><div class="o">' + esc(v.overview || v.description || '') + '</div>' +
@@ -299,6 +315,7 @@ var Views = (function () {
       '<div class="srow f" data-act="toggletc">Always transcode to HLS (use if video stutters or won\'t play): <b>' + (Store.get('transcode', false) ? 'ON' : 'OFF') + '</b></div>' +
       '<div class="lbl">ACCOUNT</div>' +
       (signed ? '<div class="srow f" data-act="signout">Signed in as ' + esc(email) + ' – Sign out</div>' : '<div class="srow f" data-act="gologin">Sign in to Stremio</div>') +
+      (signed ? '<div class="srow f" data-act="togglesync">Sync watch progress to your Stremio account: <b>' + (Store.get('sync', true) === false ? 'OFF' : 'ON') + '</b></div>' : '') +
       '<div class="lbl">EXTRA ADDONS (manifest URLs)</div>';
     addons.forEach(function (u, i) { h += '<div class="srow f" data-act="deladdon" data-i="' + i + '">' + esc(u) + '  –  remove</div>'; });
     h += '<input id="addonurl" class="field f" placeholder="https://…/manifest.json"><div class="srow f" data-act="addaddon">Add addon</div>' +
@@ -316,6 +333,16 @@ var Views = (function () {
     if (a === 'play') return Player.open(reg[+el.getAttribute('data-k')]);
     if (a === 'season') { var v = current(); return renderEpisodes(v.el, +el.getAttribute('data-s')); }
     if (a === 'pick') { var m = menuEl; var i = +el.getAttribute('data-i'); var cb = m._pick, o = m._opts[i]; closeMenu(); return cb(o, i); }
+    if (a === 'togglelib') {
+      var dv = current().el._detail; if (!dv) return;
+      if (!Api.authKey()) return toast('Sign in (Settings) to use My List');
+      var yes = !Api.inLibrary(dv.id);
+      return Api.setInLibrary({ id: dv.id, name: dv.m.name, type: dv.type, poster: dv.m.poster }, yes).then(function () {
+        var bb = current().el.querySelector('#libbtn'); if (bb) bb.textContent = yes ? '✓ In My List' : '+ My List';
+        toast(yes ? 'Added to your Stremio library' : 'Removed from your Stremio library');
+      }).catch(function (e) { toast('Could not update library: ' + e.message, 4000); });
+    }
+    if (a === 'togglesync') { Store.set('sync', Store.get('sync', true) === false); return settingsPage(); }
     if (a === 'dologin') return doLogin();
     if (a === 'skiplogin') { Store.set('skiplogin', true); return page('home'); }
     if (a === 'gologin') return login();
@@ -346,6 +373,6 @@ var Views = (function () {
     if (el && Nav.root().contains(el)) act(el);
   });
 
-  return { page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
+  return { detail: detail, page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
            act: act, runSearch: runSearch, current: current, hasMenu: function () { return !!menuEl; } };
 })();
