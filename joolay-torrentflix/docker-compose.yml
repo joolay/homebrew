@@ -1,0 +1,47 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: joolay-torrentflix_web_1
+      APP_PORT: 8080
+      # The TV and other devices open Torrentflix without logging in to Umbrel
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    image: node:20-alpine
+    restart: on-failure
+    working_dir: /app
+    stop_grace_period: 15s
+    environment:
+      PORT: 8080
+      TF_DATA: /data
+      # Host port of the bundled Stremio streaming server (see "server" below)
+      TF_STREMIO_PORT: "11581"
+      # Branch, tag or commit of github.com/joolay/homebrew to run
+      TF_REF: main
+    # Also reachable directly (for the TV app's profile sync, which cannot go through Umbrel's login proxy)
+    ports:
+      - "11582:8080"
+    volumes:
+      - ${APP_DATA_DIR}/data/web:/data
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        mkdir -p /app /data
+        if wget -q -O /tmp/tf.tgz "https://codeload.github.com/joolay/homebrew/tar.gz/$$TF_REF"; then cp /tmp/tf.tgz /data/tf.tgz; fi
+        [ -f /data/tf.tgz ] || { echo "Could not download Torrentflix and no cached copy exists"; exit 1; }
+        tar xzf /data/tf.tgz --strip-components=1 -C /app
+        exec node /app/umbrel/server.js
+
+  server:
+    image: stremio/server:v4.22.6
+    restart: on-failure
+    environment:
+      NO_CORS: "1"
+    ports:
+      - "11581:11470"
+    volumes:
+      - ${APP_DATA_DIR}/data/stremio:/root/.stremio-server

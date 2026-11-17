@@ -1,16 +1,16 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "web",
   "title": "Torrentflix",
-  "appDescription": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed, and signing in is optional for your list and watch progress sync. Includes seasons and episodes, subtitles, playback speed and next episode.",
-  "description": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed, and signing in is optional for your list and watch progress sync. Includes seasons and episodes, subtitles, playback speed and next episode.",
+  "appDescription": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the Torrentflix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
+  "description": "Torrentflix: a classic Netflix TV style app for older LG TVs running webOS 4 such as the 2018 UK6300. Up to 12 profiles, each with its own My List and watch progress, with optional sync to the Torrentflix app on your Umbrel. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution (4K, 1080p, 720p and other). Playback runs through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Includes seasons and episodes, subtitles, playback speed and next episode.",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.3.0_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.4.0_all.ipk",
   "ipkHash": {
-    "sha256": "4542d6b11e8d0e901936017e24cf3e9462668c9dd6df5b6f25ff5062c06dcbc0"
+    "sha256": "04443134ac6ccbfc3959220ccc014b7fac3fe9e6b240f5c2d4ffde7066d78427"
   },
-  "ipkSize": 27122
+  "ipkSize": 31194
 }

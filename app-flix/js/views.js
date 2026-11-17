@@ -23,6 +23,15 @@ var Resume = (function () {
   };
 })();
 
+var MyList = (function () {
+  function all() { return Store.get('list', {}); }
+  return {
+    has: function (id) { var e = all()[id]; return !!e && !e.removed; },
+    set: function (m, yes) { var a = all(); a[m.id] = { type: m.type, id: m.id, name: m.name, poster: m.poster, ts: Date.now(), removed: !yes }; Store.set('list', a); },
+    items: function () { var a = all(); return Object.keys(a).map(function (k) { return a[k]; }).filter(function (e) { return !e.removed; }).sort(function (x, y) { return y.ts - x.ts; }); }
+  };
+})();
+
 var Views = (function () {
   var app = document.getElementById('app'), stack = [], reg = [], seq = 0, menuEl = null, menuPrev = null, toastT = null;
 
@@ -91,7 +100,8 @@ var Views = (function () {
   var TABS = [['home', 'Home'], ['movie', 'Movies'], ['series', 'TV Shows'], ['library', 'My List'], ['search', 'Search'], ['settings', 'Settings']];
   var PAGE_NAMES = { home: '', movie: 'Movies', series: 'TV Shows', library: 'My List', search: 'Search', settings: 'Settings' };
   function topbar(active) {
-    return '<div class="top"><div class="logo f" data-act="menu">TORRENTFLIX</div><div class="pg">' + esc(PAGE_NAMES[active] || '') + '</div></div>';
+    var pr = Profiles.active(), who = pr ? '<div class="who f" data-act="profiles"><span class="av" style="background:' + esc(pr.color) + '">' + esc(pr.name.charAt(0).toUpperCase()) + '</span>' + esc(pr.name) + '</div>' : '';
+    return '<div class="top"><div class="logo f" data-act="menu">TORRENTFLIX</div><div class="pg">' + esc(PAGE_NAMES[active] || '') + '</div><div class="sp"></div>' + who + '</div>';
   }
   var sideEl = null, sidePrev = null, infoT = null;
   function openSide() {
@@ -100,7 +110,7 @@ var Views = (function () {
     sidePrev = { root: Nav.root(), cur: Nav.cur() };
     var h = '<div class="sidepanel"><div class="slogo">TORRENTFLIX</div>';
     TABS.forEach(function (t) { h += '<div class="sitem f' + (t[0] === v.name ? ' on' : '') + '" data-act="page" data-p="' + t[0] + '">' + t[1] + '</div>'; });
-    h += '<div class="sitem f" data-act="exit">Exit</div></div>';
+    h += '<div class="sitem f" data-act="profiles">Switch Profile</div><div class="sitem f" data-act="exit">Exit</div></div>';
     sideEl = document.createElement('div'); sideEl.className = 'side'; sideEl.innerHTML = h; app.appendChild(sideEl);
     Nav.setRoot(sideEl); var on = sideEl.querySelector('.sitem.on'); if (on) Nav.set(on);
   }
@@ -218,15 +228,11 @@ var Views = (function () {
     });
   }
   function buildLibrary(el, token) {
-    var main = el.querySelector('#main');
-    if (!Api.authKey()) { main.innerHTML = '<div class="empty">Sign in (Settings) to see your Stremio library.</div>'; return; }
-    Api.getLibrary().then(function (items) {
-      if (token !== browseToken) return;
-      if (!items.length) { main.innerHTML = '<div class="empty">Your Stremio library is empty.</div>'; return; }
-      var h = '<div class="grid">';
-      items.slice(0, 120).forEach(function (i) { h += card({ type: i.type, id: i._id, name: i.name, poster: i.poster }); });
-      main.innerHTML = h + '</div>'; Nav.hydrate();
-    }).catch(function (e) { main.innerHTML = '<div class="empty">Could not load library: ' + esc(e.message) + '</div>'; });
+    var main = el.querySelector('#main'), items = MyList.items();
+    if (!items.length) { main.innerHTML = '<div class="empty">Your list is empty. Open any title and choose “+ My List”.</div>'; return; }
+    var h = '<div class="grid">';
+    items.slice(0, 150).forEach(function (i) { h += card({ type: i.type, id: i.id, name: i.name, poster: i.poster }); });
+    main.innerHTML = h + '</div>'; Nav.hydrate();
   }
 
   /* ---------- search ---------- */
@@ -298,7 +304,7 @@ var Views = (function () {
       '<div class="meta">' + meta1(m) + '</div><div class="desc" style="max-height:170px">' + esc(m.description || '') + '</div>' +
       '<div class="btns"><div class="btn f" data-act="play" data-k="' + k + '">' + playLabel + (isSeries && sub ? ' ' + sub : '') + '</div>' +
       '<div class="btn f" data-act="play" data-k="' + k2 + '">Choose source</div>' +
-      '<div class="btn f" data-act="togglelib" id="libbtn">' + (Api.inLibrary(id) ? '✓ In My List' : '+ My List') + '</div></div></div>';
+      '<div class="btn f" data-act="togglelib" id="libbtn">' + (MyList.has(id) ? '✓ In My List' : '+ My List') + '</div></div></div>';
     if (isSeries) {
       h += '<div class="eps" id="eps"><div class="chips" id="seasons">';
       S.keys.forEach(function (s) { h += '<span class="chip f' + (s === season ? ' on' : '') + '" data-act="season" data-s="' + s + '">' + (s === 0 ? 'Specials' : 'Season ' + s) + '</span>'; });
@@ -336,11 +342,15 @@ var Views = (function () {
       '<div class="srow f" data-act="savetio">Save Torrentio link</div>' +
       '<div class="srow f" data-act="testtio">Test Torrentio</div>' +
       '<div class="srow f" data-act="resettio">Reset Torrentio link to default</div>' +
+      '<div class="lbl">PROFILE SYNC (Torrentflix on your Umbrel)</div>' +
+      (Sync.webMode() ? '<div class="srow">Profiles, lists and progress are stored on your Umbrel automatically. ' + esc(Sync.status()) + '</div>' :
+        '<input id="syncurl" class="field f" value="' + esc(Store.get('syncurl', '')) + '" placeholder="http://umbrel.local:11580  (leave empty to keep profiles on this TV only)">' +
+        '<div class="srow f" data-act="savesync">Save and sync now</div><div class="srow">' + esc(Sync.status()) + '</div>') +
       '<div class="lbl">STREAMING SERVER (your Umbrel)</div><input id="srv" class="field f" value="' + esc(Api.server()) + '" placeholder="http://192.168.1.50:11470">' +
       '<div class="srow f" data-act="saveserver">Save server address</div>' +
       '<div class="srow f" data-act="testserver">Test server connection</div>' +
       '<div class="srow f" data-act="toggletc">Always transcode to HLS (use if video stutters or won\'t play): <b>' + (Store.get('transcode', false) ? 'ON' : 'OFF') + '</b></div>' +
-      '<div class="lbl">STREMIO ACCOUNT (optional – only for your library, My List and watch progress sync)</div>' +
+      '<div class="lbl">STREMIO ACCOUNT FOR THIS PROFILE (optional – only for Stremio progress sync)</div>' +
       (signed ? '<div class="srow f" data-act="signout">Signed in as ' + esc(email) + ' – Sign out</div>' : '<div class="srow f" data-act="gologin">Sign in to Stremio</div>') +
       (signed ? '<div class="srow f" data-act="togglesync">Sync watch progress to your Stremio account: <b>' + (Store.get('sync', true) === false ? 'OFF' : 'ON') + '</b></div>' : '') +
       '<div class="hint">Torrentflix ' + (window.FLIX_VERSION || '') + '. Sources come only from Torrentio, shown as the top 3 by seeds for each resolution. Posters and details come from Cinemeta. Playback runs through your own streaming server.</div></div></div>';
@@ -348,11 +358,56 @@ var Views = (function () {
     Nav.first('#tio');
   }
 
+  /* ---------- profiles ---------- */
+  var editing = null;
+  function avatar(p, cls) { return '<div class="pav ' + (cls || '') + '" style="background:' + esc(p.color) + '">' + esc(p.name.charAt(0).toUpperCase()) + '</div>'; }
+  function profilesView(manage) {
+    closeSide(false); ++browseToken;
+    var ps = Profiles.all(), h = '<div class="plist"><h1>' + (manage ? 'Manage Profiles' : 'Who\'s watching?') + '</h1><div class="ptiles">';
+    ps.forEach(function (p) {
+      h += '<div class="ptile f" data-act="' + (manage ? 'editprofile' : 'selprofile') + '" data-id="' + esc(p.id) + '">' + avatar(p, manage ? 'edit' : '') + (manage ? '<div class="pen">✎</div>' : '') + '<div class="pn">' + esc(p.name) + '</div></div>';
+    });
+    if (ps.length < Profiles.MAX) h += '<div class="ptile f" data-act="addprofile"><div class="pav add">+</div><div class="pn">Add Profile</div></div>';
+    h += '</div><div class="btn f pbtn2" data-act="' + (manage ? 'doneprofiles' : 'manageprofiles') + '">' + (manage ? 'Done' : 'Manage Profiles') + '</div></div>';
+    replaceAll('profiles', h, { onBack: function () { if (manage) { profilesView(false); return true; } if (Profiles.active()) { page('home'); return true; } return false; } });
+    var act = Profiles.active(), first = null;
+    if (act) first = Nav.root().querySelector('.ptile[data-id="' + act.id + '"]');
+    Nav.set(first || Nav.root().querySelector('.ptile'));
+  }
+  function profileForm(id) {
+    var p = id ? Profiles.get(id) : null;
+    editing = { id: id, color: p ? p.color : Profiles.COLORS[Profiles.all().length % Profiles.COLORS.length] };
+    var h = '<div class="center"><div class="form"><h1>' + (p ? 'Edit Profile' : 'Add Profile') + '</h1><input id="pname" class="field f" maxlength="16" placeholder="Profile name" autocomplete="off" value="' + esc(p ? p.name : '') + '"><div class="swatches">';
+    Profiles.COLORS.forEach(function (c) { h += '<span class="sw f' + (c === editing.color ? ' on' : '') + '" data-act="swatch" data-c="' + c + '" style="background:' + c + '"></span>'; });
+    h += '</div><div class="btn f" data-act="saveprofile" style="background:#e50914">Save</div>' +
+      (p && Profiles.all().length > 1 ? '<div class="btn f" data-act="delprofile">Delete this profile</div>' : '') +
+      '<div class="btn f" data-act="cancelprofile">Cancel</div><div class="hint">Each profile keeps its own My List and watch progress.</div></div></div>';
+    replaceAll('profiles', h, { onBack: function () { profilesView(!!id); return true; } });
+    Nav.set(Nav.root().querySelector('#pname'));
+  }
+
   /* ---------- actions ---------- */
   function act(el) {
     var a = el.getAttribute('data-act');
     if (a === 'page') return page(el.getAttribute('data-p'));
     if (a === 'menu') return openSide();
+    if (a === 'profiles') return profilesView(false);
+    if (a === 'manageprofiles') return profilesView(true);
+    if (a === 'doneprofiles') return profilesView(false);
+    if (a === 'selprofile') { Profiles.setActive(el.getAttribute('data-id')); Api.resetAccount(); return page('home'); }
+    if (a === 'editprofile') return profileForm(el.getAttribute('data-id'));
+    if (a === 'addprofile') return profileForm(null);
+    if (a === 'swatch') { editing.color = el.getAttribute('data-c'); Array.prototype.forEach.call(Nav.root().querySelectorAll('.sw'), function (x) { x.classList.toggle('on', x === el); }); return; }
+    if (a === 'saveprofile') {
+      var nm = document.getElementById('pname').value.trim(); if (!nm) return toast('Enter a name');
+      if (editing.id) Profiles.update(editing.id, nm, editing.color); else { var np = Profiles.add(nm, editing.color); if (!np) return toast('Maximum of ' + Profiles.MAX + ' profiles'); }
+      return profilesView(true);
+    }
+    if (a === 'delprofile') {
+      if (!Profiles.remove(editing.id)) return toast('Cannot delete the last profile');
+      toast('Profile deleted'); return profilesView(true);
+    }
+    if (a === 'cancelprofile') return profilesView(!!editing.id);
     if (a === 'exit') { try { window.close(); } catch (e) {} return; }
     if (a === 'open') return openItem(reg[+el.getAttribute('data-k')]);
     if (a === 'play') return Player.open(reg[+el.getAttribute('data-k')]);
@@ -360,20 +415,17 @@ var Views = (function () {
     if (a === 'pick') { var m = menuEl; var i = +el.getAttribute('data-i'); var cb = m._pick, o = m._opts[i]; closeMenu(); return cb(o, i); }
     if (a === 'togglelib') {
       var dv = current().el._detail; if (!dv) return;
-      if (!Api.authKey()) return toast('Sign in (Settings) to use My List');
-      var yes = !Api.inLibrary(dv.id);
-      return Api.setInLibrary({ id: dv.id, name: dv.m.name, type: dv.type, poster: dv.m.poster }, yes).then(function () {
-        var bb = current().el.querySelector('#libbtn'); if (bb) bb.textContent = yes ? '✓ In My List' : '+ My List';
-        toast(yes ? 'Added to your Stremio library' : 'Removed from your Stremio library');
-      }).catch(function (e) { toast('Could not update library: ' + e.message, 4000); });
+      var yes = !MyList.has(dv.id), meta = { id: dv.id, name: dv.m.name, type: dv.type, poster: dv.m.poster };
+      MyList.set(meta, yes);
+      var bb = current().el.querySelector('#libbtn'); if (bb) bb.textContent = yes ? '✓ In My List' : '+ My List';
+      toast(yes ? 'Added to My List' : 'Removed from My List');
+      if (Api.authKey()) Api.setInLibrary(meta, yes).catch(function () {});   // also mirror to the profile's Stremio library
+      return;
     }
-    if (a === 'savetio') { var tu = document.getElementById('tio').value.trim().replace(/^stremio:\/\//, 'https://').replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); if (tu && !/^https?:\/\//.test(tu)) return toast('Link must start with https://'); Store.set('torrentio', tu); toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); return Api.reload().then(function () { toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); }); }
-    if (a === 'resettio') { Store.del('torrentio'); toast('Torrentio link reset to default'); return Api.reload().then(settingsPage); }
-    if (a === 'testtio') {
-      var tb = document.getElementById('tio').value.trim().replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); toast('Testing Torrentio …', 15000);
-      return fetch(tb + '/stream/movie/tt0111161.json').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function (j) { toast('Torrentio OK: ' + (j.streams || []).length + ' sources found for a test movie', 5000); })
-        .catch(function (e) { toast('Cannot reach Torrentio: ' + e.message + ' (check TV internet/date, or the link)', 7000); });
+    if (a === 'savesync') {
+      var su = document.getElementById('syncurl').value.trim().replace(/\/+$/, ''); if (su && !/^https?:\/\//.test(su)) return toast('Address must start with http://');
+      Store.set('syncurl', su); toast(su ? 'Syncing…' : 'Sync turned off', 6000);
+      return Sync.run(function (ok) { toast(ok ? 'Synced with your Umbrel' : Sync.status(), 5000); settingsPage(); });
     }
     if (a === 'togglesync') { Store.set('sync', Store.get('sync', true) === false); return settingsPage(); }
     if (a === 'dologin') return doLogin();
@@ -401,6 +453,6 @@ var Views = (function () {
     if (el && Nav.root().contains(el)) act(el);
   });
 
-  return { openSide: openSide, closeSide: closeSide, sideOpen: function () { return !!sideEl; }, detail: detail, page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
+  return { profiles: profilesView, openSide: openSide, closeSide: closeSide, sideOpen: function () { return !!sideEl; }, detail: detail, page: page, login: login, mount: mount, pop: pop, back: back, menu: menu, closeMenu: closeMenu, toast: toast, esc: esc, fmtTime: fmtTime,
            act: act, runSearch: runSearch, current: current, hasMenu: function () { return !!menuEl; } };
 })();

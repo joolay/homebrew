@@ -1,5 +1,10 @@
 /* Boot + global key handling. */
-window.FLIX_VERSION = 'v1.3.0';
+window.FLIX_VERSION = 'v1.4.0';
+(function fit() {            // web (Umbrel) mode: scale the 1920x1080 layout to the browser window
+  if (!window.TF_BACKEND) return;
+  function z() { document.documentElement.style.zoom = Math.min(window.innerWidth / 1920, window.innerHeight / 1080); }
+  window.addEventListener('resize', z); z();
+})();
 (function () {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
   var BACK = { 8: 1, 27: 1, 461: 1, 10009: 1 };
@@ -38,7 +43,9 @@ window.FLIX_VERSION = 'v1.3.0';
   function boot() {
     var q = location.search;
     var dbg = /[?&]debugstream=([^&]+)/.exec(q);
-    Views.page('home');
+    Profiles.ensure(); Sync.start();
+    var ps = Profiles.all();
+    if (ps.length === 1) { Profiles.setActive(ps[0].id); Views.page('home'); } else Views.profiles(false);
     if (dbg) setTimeout(function () { Player.open({ type: 'movie', id: 'tt0111161', videoId: 'tt0111161', title: 'Debug stream', _direct: decodeURIComponent(dbg[1]) }); }, 1500);
   }
   boot();

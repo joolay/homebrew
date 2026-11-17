@@ -38,10 +38,20 @@ Use the Umbrel's **IP address** if `umbrel.local` (mDNS) doesn't resolve on the 
 ## Torrentflix (classic Netflix TV style) — `app-flix/`
 A separate app (id `io.stremio.flix.tv`, shown as **Torrentflix**) styled like the older Netflix TV app: black screen, info panel for the focused title above the rows, square white-framed box art, pop-out left menu (press Left on the first title, or Back). Written for Chromium 53 (no WebAssembly).
 
-- **Sources: Torrentio only.** Per title it shows the **top 3 sources by seeds in each resolution: 4K, 1080p, 720p, Other**. "Play" starts the top-seeded 1080p source (then 720p, 4K, other); "Choose source" shows all 12.
+- **Sources: Torrentio only.** Top 3 sources by seeds in each of 4K, 1080p, 720p, Other. "Play" starts the top-seeded 1080p source (then 720p, 4K, other); "Choose source" shows all.
 - Posters/details/episodes: Cinemeta. Subtitles: OpenSubtitles. No Stremio account needed.
-- Playback: your own Stremio streaming server (e.g. Umbrel) via `http://<umbrel>:11470/<infoHash>/<file>`, with automatic HLS transcoding fallback.
-- Optional Stremio sign-in: My List, Continue Watching and watch-progress sync.
+- Playback through your own Stremio streaming server via `http://<server>:11470/<infoHash>/<file>`, with automatic HLS transcoding fallback.
+- **Up to 12 profiles** ("Who's watching?"), each with its own **My List**, **watch progress / Continue Watching** and optional Stremio account. Add/edit/delete under Manage Profiles; switch via the left menu or the avatar top-right.
 - Seasons/episodes, resume, auto-play next episode, playback speed, subtitles.
 
-Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.3.0_all.ipk`.
+Install on the TV: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.4.0_all.ipk`.
+
+## Torrentflix for Umbrel — `joolay-torrentflix/` + `umbrel/`
+The same interface as a self-hosted app (open it from any browser; scales to the window), bundled with its own **Stremio streaming server** (`stremio/server`), plus a tiny wrapper (`umbrel/server.js`, no dependencies) that stores **profiles, My Lists and watch progress on your Umbrel** so every device shares them (newest entry wins).
+
+Install: Umbrel → App Store → ⋯ → *Community App Stores* → add `https://github.com/joolay/homebrew` → install **Torrentflix**.
+- Web UI: `http://umbrel.local:11580` (also `:11582` directly, no Umbrel login proxy). Streaming server: `:11581`.
+- No login of its own: anyone on your LAN can open it.
+- It downloads the Torrentflix files from this repo's `main` branch on start (`TF_REF` in the compose file; cached for offline restarts). Pin `TF_REF` to a tag/commit to stop auto-updates.
+
+Connect the **TV app** to it: Torrentflix → Settings → *Profile sync* = `http://umbrel.local:11582`, and *Streaming server* = `http://umbrel.local:11581` (use the Umbrel's IP if `umbrel.local` doesn't resolve on the TV).

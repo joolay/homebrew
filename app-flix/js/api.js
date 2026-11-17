@@ -285,7 +285,7 @@ var Api = (function () {
   return {
     login: login, logout: logout, authKey: authKey, ensure: ensure, reload: function () { loaded = false; return loadAddons(); },
     catalogDefs: catalogDefs, fetchCatalog: fetchCatalog, search: search, getMeta: getMeta, getLibrary: getLibrary,
-    getLibraryAll: getLibraryAll, getContinue: getContinue, remoteLast: remoteLast, inLibrary: inLibrary, setInLibrary: setInLibrary, syncProgress: syncProgress,
+    resetAccount: function () { libCache = null; libAt = 0; }, getLibraryAll: getLibraryAll, getContinue: getContinue, remoteLast: remoteLast, inLibrary: inLibrary, setInLibrary: setInLibrary, syncProgress: syncProgress,
     getStreams: getStreams, torrentioUrl: torrentioUrl, defaultTorrentio: function () { return DEFAULT_TORRENTIO; }, getSubtitles: getSubtitles, directUrl: directUrl, hlsUrl: hlsUrl, server: server,
     addons: function () { return addons; }
   };

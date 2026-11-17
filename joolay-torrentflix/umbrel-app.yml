@@ -1,0 +1,31 @@
+manifestVersion: 1
+id: joolay-torrentflix
+category: media
+name: Torrentflix
+version: "1.0.0"
+tagline: A classic Netflix-style front end for your Stremio streaming server
+description: >-
+  Torrentflix gives your TV, phone and computer a clean, classic Netflix-style interface on top of the Stremio streaming server.
+
+
+  It includes its own Stremio streaming server, finds sources with Torrentio (shown as the top 3 by seeds in 4K, 1080p, 720p and other), and plays them through your Umbrel.
+
+
+  Up to 12 profiles, each with its own My List and watch progress, are stored on your Umbrel and shared by every device you open Torrentflix on (browser or the Torrentflix TV app for LG webOS).
+
+
+  Torrentflix has no sign-in of its own, so anyone on your network can open it. Only use it on a network you trust. You are responsible for what you stream and for following the laws that apply to you.
+developer: joolay
+website: https://github.com/joolay/homebrew
+dependencies: []
+repo: https://github.com/joolay/homebrew
+support: https://github.com/joolay/homebrew/issues
+port: 11580
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+releaseNotes: >-
+  First release: Netflix-style interface, built-in Stremio streaming server, Torrentio sources, and synced profiles.
+submitter: joolay
+submission: https://github.com/joolay/homebrew
