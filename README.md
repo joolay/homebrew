@@ -33,3 +33,16 @@ Use the Umbrel's **IP address** if `umbrel.local` (mDNS) doesn't resolve on the 
 - Smoke-tested only in desktop Chromium; not yet on a real UK6300PVB.
 - HEVC/AC3 support depends on the TV; the Umbrel server can transcode if enabled.
 - Stremio 4.4 is unmaintained upstream; new features of Stremio 5 aren't available.
+
+
+## Flix for Stremio (Netflix-style frontend) — `app-flix/`
+A second, separate app (`io.stremio.flix.tv`) with a clean Netflix-style interface written for Chromium 53 (no WebAssembly).
+Stremio is used only as a **source**: your account, addons, library and stream lists. Playback goes through your Umbrel streaming server.
+
+- Home / Movies / Series / My Stremio / Search / Settings, hero banner, poster rows, season and episode pages.
+- Picks the best source automatically (prefers 1080p H.264 with good seeders, avoids CAM/huge remux/HDR); "Choose source" lists everything.
+- Player: seek with Left/Right, OK to pause, Speed, Subtitles (addon subtitles), Sources; resume and Continue Watching.
+- Falls back to Umbrel HLS transcoding automatically if a file will not play directly.
+- Settings: server address + connection test, always-transcode toggle, extra addon URLs, sign in/out.
+- Install: Homebrew Channel (same repository URL), or `ares-install dist/io.stremio.flix.tv_1.0.0_all.ipk`.
+- Not yet: syncing watch progress back to your Stremio account, adding/removing library items.

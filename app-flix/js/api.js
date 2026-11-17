@@ -1,0 +1,200 @@
+/* Stremio data layer: account, addons, catalogs, meta, streams, subtitles. Stremio is used only as a source. */
+var Api = (function () {
+  var API = 'https://api.strem.io/api/';
+  var CINEMETA = 'https://v3-cinemeta.strem.io';
+  var addons = [];           // [{base, manifest}]
+  var loaded = false;
+
+  function timeout(p, ms) {
+    return new Promise(function (res, rej) {
+      var t = setTimeout(function () { rej(new Error('Timed out')); }, ms);
+      p.then(function (v) { clearTimeout(t); res(v); }, function (e) { clearTimeout(t); rej(e); });
+    });
+  }
+  function getJSON(url, ms) {
+    return timeout(fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), ms || 15000);
+  }
+  function post(method, body, ms) {
+    return timeout(fetch(API + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.error) throw new Error(typeof j.error === 'string' ? j.error : (j.error.message || 'Request failed'));
+        return j.result;
+      }), ms || 20000);
+  }
+  function baseOf(url) { return url.replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); }
+  function authKey() { return Store.get('auth', null); }
+
+  /* ---- account ---- */
+  function login(email, password) {
+    return post('login', { type: 'Login', email: email, password: password, facebook: false }).then(function (r) {
+      Store.set('auth', r.authKey); Store.set('email', email); return r;
+    });
+  }
+  function logout() {
+    var k = authKey(); Store.del('auth'); Store.del('email'); addons = []; loaded = false;
+    if (k) post('logout', { type: 'Logout', authKey: k }, 8000).catch(function () {});
+  }
+
+  /* ---- addons ---- */
+  function loadAddons() {
+    var jobs = [], k = authKey();
+    if (k) {
+      jobs.push(post('addonCollectionGet', { type: 'AddonCollectionGet', authKey: k, update: true }).then(function (r) {
+        return (r.addons || []).map(function (a) { return { base: baseOf(a.transportUrl), manifest: a.manifest }; });
+      }).catch(function () { return []; }));
+    }
+    (Store.get('addons', []) || []).forEach(function (u) {
+      jobs.push(getJSON(u).then(function (m) { return [{ base: baseOf(u), manifest: m }]; }).catch(function () { return []; }));
+    });
+    return Promise.all(jobs).then(function (parts) {
+      var list = [].concat.apply([], parts), seen = {};
+      list = list.filter(function (a) { if (!a.manifest || seen[a.base]) return false; seen[a.base] = 1; return true; });
+      var hasCat = list.some(function (a) { return /cinemeta/i.test(a.base) || /cinemeta/i.test(a.manifest.id || ''); });
+      if (hasCat) { loaded = true; addons = list; return addons; }
+      return getJSON(CINEMETA + '/manifest.json').then(function (m) {
+        list.unshift({ base: CINEMETA, manifest: m }); addons = list; loaded = true; return addons;
+      });
+    });
+  }
+  function ensure() { return loaded ? Promise.resolve(addons) : loadAddons(); }
+
+  function supports(a, res, type, id) {
+    var rs = a.manifest.resources || [];
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i], name = typeof r === 'string' ? r : r.name;
+      if (name !== res) continue;
+      var types = (typeof r === 'string' ? null : r.types) || a.manifest.types;
+      var pre = (typeof r === 'string' ? null : r.idPrefixes) || a.manifest.idPrefixes;
+      if (types && type && types.indexOf(type) < 0) continue;
+      if (pre && id && !pre.some(function (p) { return String(id).indexOf(p) === 0; })) continue;
+      return true;
+    }
+    return false;
+  }
+
+  /* ---- catalogs ---- */
+  function requiresExtra(c) {
+    return (c.extra || []).some(function (e) { return e.isRequired; }) || (c.extraRequired && c.extraRequired.length);
+  }
+  function catalogDefs() {
+    var defs = [];
+    addons.forEach(function (a) {
+      (a.manifest.catalogs || []).forEach(function (c) {
+        if ((c.type !== 'movie' && c.type !== 'series') || requiresExtra(c)) return;
+        if (!supports(a, 'catalog', c.type)) { /* some manifests omit resources; keep anyway */ }
+        defs.push({ base: a.base, type: c.type, id: c.id, name: c.name || c.id, addon: a.manifest.name });
+      });
+    });
+    return defs;
+  }
+  function fetchCatalog(def, extra) {
+    var url = def.base + '/catalog/' + def.type + '/' + encodeURIComponent(def.id) + (extra ? '/' + extra : '') + '.json';
+    return getJSON(url).then(function (r) { return r.metas || []; });
+  }
+  function search(q) {
+    var jobs = [];
+    addons.forEach(function (a) {
+      (a.manifest.catalogs || []).forEach(function (c) {
+        if ((c.type !== 'movie' && c.type !== 'series') || jobs.length > 6) return;
+        var hasSearch = (c.extra || []).some(function (e) { return e.name === 'search'; }) || (c.extraSupported || []).indexOf('search') >= 0;
+        if (hasSearch) jobs.push(fetchCatalog({ base: a.base, type: c.type, id: c.id }, 'search=' + encodeURIComponent(q)).catch(function () { return []; }));
+      });
+    });
+    return Promise.all(jobs).then(function (parts) {
+      var seen = {}, out = [];
+      [].concat.apply([], parts).forEach(function (m) { if (m && m.id && !seen[m.type + m.id]) { seen[m.type + m.id] = 1; out.push(m); } });
+      return out;
+    });
+  }
+
+  /* ---- meta ---- */
+  function getMeta(type, id) {
+    var a = addons.filter(function (x) { return supports(x, 'meta', type, id); })[0] || addons[0];
+    return getJSON(a.base + '/meta/' + type + '/' + encodeURIComponent(id) + '.json').then(function (r) { return r.meta; });
+  }
+
+  /* ---- library (account) ---- */
+  function getLibrary() {
+    var k = authKey();
+    if (!k) return Promise.resolve([]);
+    return post('datastoreGet', { type: 'DatastoreGet', authKey: k, collection: 'libraryItem', ids: [], all: true }).then(function (items) {
+      return (items || []).filter(function (i) { return !i.removed && (i.type === 'movie' || i.type === 'series'); })
+        .sort(function (a, b) { return String(b._mtime).localeCompare(String(a._mtime)); });
+    });
+  }
+
+  /* ---- streams ---- */
+  function qualityOf(t) {
+    if (/2160p|4k|uhd/.test(t)) return '4K';
+    if (/1080p|1080i/.test(t)) return '1080p';
+    if (/720p/.test(t)) return '720p';
+    if (/480p|dvdrip|sd\b/.test(t)) return 'SD';
+    return '';
+  }
+  function describe(s) {
+    var text = ((s.name || '') + ' ' + (s.title || '') + ' ' + (s.description || '') + ' ' + ((s.behaviorHints && s.behaviorHints.filename) || '')).toLowerCase();
+    var q = qualityOf(text), sc = 0;
+    if (q === '1080p') sc += 40; else if (q === '720p') sc += 28; else if (q === '4K') sc += 12; else if (q === 'SD') sc += 5;
+    if (/\bcam\b|camrip|hdcam|\bts\b|telesync|hdts|telecine/.test(text)) sc -= 200;
+    if (/hdr|dolby.?vision|\bdv\b/.test(text)) sc -= 12;
+    if (/remux/.test(text)) sc -= 14;
+    if (/x265|hevc|h\.?265/.test(text)) sc -= 4;
+    if (/x264|h\.?264|avc/.test(text)) sc += 6;
+    if (/10.?bit/.test(text)) sc -= 8;
+    if (/atmos|truehd|dts-hd|dts.?x/.test(text)) sc -= 4;
+    var seeds = (/(?:👤|seeders?:?)\s*(\d+)/.exec(text) || [])[1];
+    seeds = seeds ? parseInt(seeds, 10) : 0;
+    sc += Math.min(25, Math.round(Math.log(seeds + 1) * 4));
+    var size = /(\d+(?:\.\d+)?)\s*(gb|mb)/.exec(text), gb = 0;
+    if (size) { gb = parseFloat(size[1]) * (size[2] === 'gb' ? 1 : 1 / 1024); if (gb > 20) sc -= 15; else if (gb > 12) sc -= 6; }
+    if (s.url) sc += 15;                      // direct/debrid link: no torrent swarm to wait for
+    if (!s.url && !s.infoHash) sc -= 500;    // not playable here (external/youtube)
+    return { quality: q, seeds: seeds, size: size ? size[1] + ' ' + size[2].toUpperCase() : '', score: sc };
+  }
+  function getStreams(type, videoId, onPartial) {
+    var found = [];
+    var jobs = addons.filter(function (a) { return supports(a, 'stream', type, videoId); }).map(function (a) {
+      return getJSON(a.base + '/stream/' + type + '/' + encodeURIComponent(videoId) + '.json', 20000).then(function (r) {
+        (r.streams || []).forEach(function (s) {
+          var d = describe(s); s._q = d; s._addon = a.manifest.name || 'Addon'; found.push(s);
+        });
+        if (onPartial) onPartial(sorted(found));
+      }).catch(function () {});
+    });
+    return Promise.all(jobs).then(function () { return sorted(found); });
+  }
+  function sorted(list) {
+    return list.filter(function (s) { return s._q.score > -400; }).sort(function (a, b) { return b._q.score - a._q.score; });
+  }
+  function getSubtitles(type, videoId) {
+    var jobs = addons.filter(function (a) { return supports(a, 'subtitles', type, videoId); }).map(function (a) {
+      return getJSON(a.base + '/subtitles/' + type + '/' + encodeURIComponent(videoId) + '.json', 12000)
+        .then(function (r) { return r.subtitles || []; }).catch(function () { return []; });
+    });
+    return Promise.all(jobs).then(function (p) { return [].concat.apply([], p); });
+  }
+
+  /* ---- turning a stream into a playable URL on the Umbrel server ---- */
+  function server() { return (Store.get('server', null) || (window.FLIX_CONFIG && FLIX_CONFIG.serverUrl) || '').replace(/\/+$/, ''); }
+  function directUrl(s) {
+    if (s.url) return s.url;
+    if (!s.infoHash) return null;
+    var idx = s.fileIdx != null ? s.fileIdx : -1, u = server() + '/' + s.infoHash + '/' + idx;
+    var tr = (s.sources || []).filter(function (x) { return x.indexOf('tracker:') === 0; })
+      .map(function (x) { return 'tr=' + encodeURIComponent(x.slice(8)); });
+    return tr.length ? u + '?' + tr.join('&') : u;
+  }
+  function hlsUrl(url) {
+    var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    return server() + '/hlsv2/' + id + '/master.m3u8?mediaURL=' + encodeURIComponent(url) +
+      '&videoCodecs=h264&audioCodecs=aac&maxAudioChannels=2';
+  }
+
+  return {
+    login: login, logout: logout, authKey: authKey, ensure: ensure, reload: function () { loaded = false; return loadAddons(); },
+    catalogDefs: catalogDefs, fetchCatalog: fetchCatalog, search: search, getMeta: getMeta, getLibrary: getLibrary,
+    getStreams: getStreams, getSubtitles: getSubtitles, directUrl: directUrl, hlsUrl: hlsUrl, server: server,
+    addons: function () { return addons; }
+  };
+})();

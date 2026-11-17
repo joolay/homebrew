@@ -1,0 +1,1 @@
+{"id":"io.stremio.flix.tv","version":"1.0.0","vendor":"community","type":"web","main":"index.html","title":"Flix for Stremio","icon":"icon.png","largeIcon":"largeIcon.png","bgColor":"#141414","resolution":"1920x1080","disableBackHistoryAPI":true,"inspectable":true}

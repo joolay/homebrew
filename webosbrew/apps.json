@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 1,
+    "count": 2,
     "maxPage": 1,
-    "itemsTotal": 1
+    "itemsTotal": 2
   },
   "packages": [
     {
@@ -14,6 +14,15 @@
       "pool": "main",
       "shortDescription": "Legacy Stremio frontend for webOS 4 TVs, using your own streaming server such as Umbrel",
       "description": "Legacy Stremio frontend built for older LG TVs running webOS 4 such as the 2018 UK6300. Current Stremio Web needs WebAssembly which these TVs lack, so this bundles the older Stremio 4 app with compatibility fixes. Sign in with your normal Stremio account to get your library and addons. No streaming server is included, so set your own, such as Umbrel, under Settings then Streaming server. Use the remote Red and Green buttons to shrink or enlarge the interface."
+    },
+    {
+      "id": "io.stremio.flix.tv",
+      "title": "Flix for Stremio",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-flix.json",
+      "pool": "main",
+      "shortDescription": "Netflix style Stremio frontend for webOS 4 TVs, using your own streaming server such as Umbrel",
+      "description": "Netflix style interface for Stremio, built for older LG TVs running webOS 4 such as the 2018 UK6300. Clean rows of posters, a hero banner, season and episode pages, and a simple player with speed and subtitle controls. Stremio is used only as your source of addons, library and streams, so sign in with your normal Stremio account. Playback runs through your own streaming server such as Umbrel, set under Settings."
     }
   ]
 }

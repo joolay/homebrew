@@ -1,0 +1,16 @@
+{
+  "id": "io.stremio.flix.tv",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "Flix for Stremio",
+  "appDescription": "Netflix style interface for Stremio, built for older LG TVs running webOS 4 such as the 2018 UK6300. Clean rows of posters, a hero banner, season and episode pages, and a simple player with speed and subtitle controls. Stremio is used only as your source of addons, library and streams, so sign in with your normal Stremio account. Playback runs through your own streaming server such as Umbrel, set under Settings.",
+  "description": "Netflix style interface for Stremio, built for older LG TVs running webOS 4 such as the 2018 UK6300. Clean rows of posters, a hero banner, season and episode pages, and a simple player with speed and subtitle controls. Stremio is used only as your source of addons, library and streams, so sign in with your normal Stremio account. Playback runs through your own streaming server such as Umbrel, set under Settings.",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": false,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "c5369726899277716c3dc680636cfc221396c00eefccd3627a2e76586a545e68"
+  },
+  "ipkSize": 23058
+}
