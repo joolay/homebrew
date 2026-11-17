@@ -23,7 +23,7 @@ ares-setup-device                       # add your TV (Developer Mode app on the
 ares-install --device tv dist/io.stremio.legacy.tv_1.0.0_all.ipk
 ares-launch  --device tv io.stremio.legacy.tv
 ```
-Or with Homebrew Channel (rooted TV): install the IPK from the release / add `webosbrew/apps.json` as a repo once hosted.
+Or with Homebrew Channel (rooted TV): install the IPK from the release / add this repository URL in Homebrew Channel settings: `https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/apps.json`
 
 ## Configure your Umbrel server
 Edit `app/config.js` (`http://<umbrel-ip>:11470`), then `ares-package --no-minify app -o dist`.
