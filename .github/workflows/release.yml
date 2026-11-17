@@ -15,12 +15,12 @@ jobs:
       - name: Package
         run: |
           V=${GITHUB_REF_NAME#v}
-          jq --arg v "$V" '.version=$v' app/appinfo.json > t.json && mv t.json app/appinfo.json
-          ares-package --no-minify app -o .
-          IPK=io.stremio.legacy.tv_${V}_all.ipk
+          jq --arg v "$V" '.version=$v' app-flix/appinfo.json > t.json && mv t.json app-flix/appinfo.json
+          ares-package --no-minify app-flix -o .
+          IPK=io.stremio.flix.tv_${V}_all.ipk
           echo "IPK=$IPK" >> $GITHUB_ENV
           jq -n --arg v "$V" --arg ipk "$IPK" --arg sha "$(sha256sum $IPK | cut -d' ' -f1)" --argjson size $(stat -c%s $IPK) --arg repo "$GITHUB_REPOSITORY" \
-            '{id:"io.stremio.legacy.tv",version:$v,type:"web",title:"Stremio (Legacy 4.4)",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app/icon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
+            '{id:"io.stremio.flix.tv",version:$v,type:"web",title:"Torrentflix",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app-flix/largeIcon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
       - uses: softprops/action-gh-release@v2
         with:
           files: |

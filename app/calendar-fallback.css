@@ -1,3 +1,0 @@
-/* Chromium 53 has no CSS grid: flex fallback for the series calendar. */
-#series-calendar ul.month, #series-calendar ul.weekdays { display: flex; flex-wrap: wrap; }
-#series-calendar ul.month > li, #series-calendar ul.weekdays > li { width: 14.285%; box-sizing: border-box; }
