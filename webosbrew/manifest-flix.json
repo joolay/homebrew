@@ -1,16 +1,16 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "web",
   "title": "Flix for Stremio",
-  "appDescription": "Netflix style interface for Stremio, built for older LG TVs running webOS 4 such as the 2018 UK6300. Clean rows of posters, a hero banner, season and episode pages, and a simple player with speed and subtitle controls. Stremio is used only as your source of addons, library and streams, so sign in with your normal Stremio account. Playback runs through your own streaming server such as Umbrel, set under Settings.",
-  "description": "Netflix style interface for Stremio, built for older LG TVs running webOS 4 such as the 2018 UK6300. Clean rows of posters, a hero banner, season and episode pages, and a simple player with speed and subtitle controls. Stremio is used only as your source of addons, library and streams, so sign in with your normal Stremio account. Playback runs through your own streaming server such as Umbrel, set under Settings.",
+  "appDescription": "Netflix style interface for older LG TVs running webOS 4 such as the 2018 UK6300. Browse with Cinemeta posters and details, get sources from Torrentio, and play them through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Signing in is optional and adds your library, My List and watch progress sync. Includes a hero banner, season and episode pages, subtitles, playback speed and next episode.",
+  "description": "Netflix style interface for older LG TVs running webOS 4 such as the 2018 UK6300. Browse with Cinemeta posters and details, get sources from Torrentio, and play them through your own Stremio streaming server such as Umbrel. No Stremio account is needed. Signing in is optional and adds your library, My List and watch progress sync. Includes a hero banner, season and episode pages, subtitles, playback speed and next episode.",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.1.0_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_1.2.0_all.ipk",
   "ipkHash": {
-    "sha256": "1de3b6b3a691aee17f2a66c3a09806438c91ab31b30625572daf309eb663e560"
+    "sha256": "9e4fa42d14dc935df3fb1a4a13fd07c106348c58fa56becba711ecd31bf7214c"
   },
-  "ipkSize": 24928
+  "ipkSize": 25938
 }

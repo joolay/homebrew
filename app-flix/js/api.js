@@ -2,7 +2,8 @@
 var Api = (function () {
   var API = 'https://api.strem.io/api/';
   var CINEMETA = 'https://v3-cinemeta.strem.io';
-  var addons = [];           // [{base, manifest}]
+  var DEFAULT_TORRENTIO = 'https://torrentio.strem.fun/qualityfilter=brremux,hdrall,dolbyvision,dolbyvisionwithhdr,4k,scr,cam,unknown|sizefilter=12GB|limit=10';
+  var addons = [];           // [{base, manifest, torrentio?}]
   var loaded = false;
 
   function timeout(p, ms) {
@@ -24,6 +25,13 @@ var Api = (function () {
   }
   function baseOf(url) { return url.replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); }
   function authKey() { return Store.get('auth', null); }
+  function torrentioUrl() { var v = Store.get('torrentio', undefined); return v === undefined || v === null ? DEFAULT_TORRENTIO : v; }
+  function builtinAddons() {
+    var out = [], t = torrentioUrl();
+    if (t) out.push({ base: baseOf(t), torrentio: true, manifest: { id: 'com.stremio.torrentio.addon', name: 'Torrentio', version: '0', resources: ['stream'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [] } });
+    out.push({ base: 'https://opensubtitles-v3.strem.io', manifest: { id: 'org.stremio.opensubtitlesv3', name: 'OpenSubtitles', version: '0', resources: ['subtitles'], types: ['movie', 'series'], idPrefixes: ['tt'], catalogs: [] } });
+    return out;
+  }
 
   /* ---- account ---- */
   function login(email, password) {
@@ -48,7 +56,7 @@ var Api = (function () {
       jobs.push(getJSON(u).then(function (m) { return [{ base: baseOf(u), manifest: m }]; }).catch(function () { return []; }));
     });
     return Promise.all(jobs).then(function (parts) {
-      var list = [].concat.apply([], parts), seen = {};
+      var list = [].concat.apply([], parts).concat(builtinAddons()), seen = {};
       list = list.filter(function (a) { if (!a.manifest || seen[a.base]) return false; seen[a.base] = 1; return true; });
       var hasCat = list.some(function (a) { return /cinemeta/i.test(a.base) || /cinemeta/i.test(a.manifest.id || ''); });
       if (hasCat) { loaded = true; addons = list; return addons; }
@@ -212,13 +220,16 @@ var Api = (function () {
     sc += Math.min(25, Math.round(Math.log(seeds + 1) * 4));
     var size = /(\d+(?:\.\d+)?)\s*(gb|mb)/.exec(text), gb = 0;
     if (size) { gb = parseFloat(size[1]) * (size[2] === 'gb' ? 1 : 1 / 1024); if (gb > 20) sc -= 15; else if (gb > 12) sc -= 6; }
+    if (/[\u0400-\u04FF\u3040-\u30FF\u4E00-\u9FFF\u0600-\u06FF]/.test((s.title || '') + (s.name || ''))) sc -= 18;   // Cyrillic / CJK / Arabic titles
+    if (!s.url && s.infoHash && seeds === 0) sc -= 25;                                                              // dead torrent
     if (s.url) sc += 15;                      // direct/debrid link: no torrent swarm to wait for
     if (!s.url && !s.infoHash) sc -= 500;    // not playable here (external/youtube)
     return { quality: q, seeds: seeds, size: size ? size[1] + ' ' + size[2].toUpperCase() : '', score: sc };
   }
   function getStreams(type, videoId, onPartial) {
     var found = [];
-    var jobs = addons.filter(function (a) { return supports(a, 'stream', type, videoId); }).map(function (a) {
+    var only = Store.get('onlyTorrentio', true) !== false && addons.some(function (a) { return a.torrentio; });
+    var jobs = addons.filter(function (a) { return supports(a, 'stream', type, videoId) && (!only || a.torrentio); }).map(function (a) {
       return getJSON(a.base + '/stream/' + type + '/' + encodeURIComponent(videoId) + '.json', 20000).then(function (r) {
         (r.streams || []).forEach(function (s) {
           var d = describe(s); s._q = d; s._addon = a.manifest.name || 'Addon'; found.push(s);
@@ -236,7 +247,10 @@ var Api = (function () {
       return getJSON(a.base + '/subtitles/' + type + '/' + encodeURIComponent(videoId) + '.json', 12000)
         .then(function (r) { return r.subtitles || []; }).catch(function () { return []; });
     });
-    return Promise.all(jobs).then(function (p) { return [].concat.apply([], p); });
+    return Promise.all(jobs).then(function (p) {
+      var all = [].concat.apply([], p);
+      return all.sort(function (a, b) { return (b.lang === 'eng') - (a.lang === 'eng'); });
+    });
   }
 
   /* ---- turning a stream into a playable URL on the Umbrel server ---- */
@@ -259,7 +273,7 @@ var Api = (function () {
     login: login, logout: logout, authKey: authKey, ensure: ensure, reload: function () { loaded = false; return loadAddons(); },
     catalogDefs: catalogDefs, fetchCatalog: fetchCatalog, search: search, getMeta: getMeta, getLibrary: getLibrary,
     getLibraryAll: getLibraryAll, getContinue: getContinue, remoteLast: remoteLast, inLibrary: inLibrary, setInLibrary: setInLibrary, syncProgress: syncProgress,
-    getStreams: getStreams, getSubtitles: getSubtitles, directUrl: directUrl, hlsUrl: hlsUrl, server: server,
+    getStreams: getStreams, torrentioUrl: torrentioUrl, defaultTorrentio: function () { return DEFAULT_TORRENTIO; }, getSubtitles: getSubtitles, directUrl: directUrl, hlsUrl: hlsUrl, server: server,
     addons: function () { return addons; }
   };
 })();

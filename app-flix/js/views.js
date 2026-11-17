@@ -309,11 +309,17 @@ var Views = (function () {
     ++browseToken;
     var email = Store.get('email', ''), signed = !!Api.authKey(), addons = Store.get('addons', []) || [];
     var h = topbar('settings') + '<div class="vs" id="main"><div class="settings"><h1>Settings</h1>' +
+      '<div class="lbl">STREAM SOURCE – TORRENTIO (configure at torrentio.strem.fun, paste the link here)</div>' +
+      '<input id="tio" class="field f" value="' + esc(Api.torrentioUrl()) + '" placeholder="https://torrentio.strem.fun/…">' +
+      '<div class="srow f" data-act="savetio">Save Torrentio link</div>' +
+      '<div class="srow f" data-act="testtio">Test Torrentio</div>' +
+      '<div class="srow f" data-act="resettio">Reset to recommended TV settings (1080p/720p H.264 friendly, under 12 GB)</div>' +
+      '<div class="srow f" data-act="toggleonly">Use only Torrentio for streams: <b>' + (Store.get('onlyTorrentio', true) === false ? 'OFF (also use my Stremio addons)' : 'ON') + '</b></div>' +
       '<div class="lbl">STREAMING SERVER (your Umbrel)</div><input id="srv" class="field f" value="' + esc(Api.server()) + '" placeholder="http://192.168.1.50:11470">' +
       '<div class="srow f" data-act="saveserver">Save server address</div>' +
       '<div class="srow f" data-act="testserver">Test server connection</div>' +
       '<div class="srow f" data-act="toggletc">Always transcode to HLS (use if video stutters or won\'t play): <b>' + (Store.get('transcode', false) ? 'ON' : 'OFF') + '</b></div>' +
-      '<div class="lbl">ACCOUNT</div>' +
+      '<div class="lbl">STREMIO ACCOUNT (optional: library, My List and progress sync)</div>' +
       (signed ? '<div class="srow f" data-act="signout">Signed in as ' + esc(email) + ' – Sign out</div>' : '<div class="srow f" data-act="gologin">Sign in to Stremio</div>') +
       (signed ? '<div class="srow f" data-act="togglesync">Sync watch progress to your Stremio account: <b>' + (Store.get('sync', true) === false ? 'OFF' : 'ON') + '</b></div>' : '') +
       '<div class="lbl">EXTRA ADDONS (manifest URLs)</div>';
@@ -341,6 +347,15 @@ var Views = (function () {
         var bb = current().el.querySelector('#libbtn'); if (bb) bb.textContent = yes ? '✓ In My List' : '+ My List';
         toast(yes ? 'Added to your Stremio library' : 'Removed from your Stremio library');
       }).catch(function (e) { toast('Could not update library: ' + e.message, 4000); });
+    }
+    if (a === 'savetio') { var tu = document.getElementById('tio').value.trim().replace(/^stremio:\/\//, 'https://').replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); if (tu && !/^https?:\/\//.test(tu)) return toast('Link must start with https://'); Store.set('torrentio', tu); toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); return Api.reload().then(function () { toast(tu ? 'Torrentio link saved' : 'Torrentio disabled'); }); }
+    if (a === 'resettio') { Store.del('torrentio'); toast('Reset to recommended settings'); return Api.reload().then(settingsPage); }
+    if (a === 'toggleonly') { Store.set('onlyTorrentio', Store.get('onlyTorrentio', true) === false); return Api.reload().then(settingsPage); }
+    if (a === 'testtio') {
+      var tb = document.getElementById('tio').value.trim().replace(/\/manifest\.json.*$/, '').replace(/\/+$/, ''); toast('Testing Torrentio …', 15000);
+      return fetch(tb + '/stream/movie/tt0111161.json').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) { toast('Torrentio OK: ' + (j.streams || []).length + ' sources found for a test movie', 5000); })
+        .catch(function (e) { toast('Cannot reach Torrentio: ' + e.message + ' (check TV internet/date, or the link)', 7000); });
     }
     if (a === 'togglesync') { Store.set('sync', Store.get('sync', true) === false); return settingsPage(); }
     if (a === 'dologin') return doLogin();

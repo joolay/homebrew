@@ -155,7 +155,7 @@ var Player = (function () {
   /* ---- menus ---- */
   function pickSource() {
     if (!S) return;
-    var opts = S.streams.map(function (s, i) {
+    var opts = S.streams.slice(0, 40).map(function (s, i) {
       var q = s._q || {}, name = String(s.title || s.name || 'Stream').split('\n')[0];
       return { q: q.quality || '—', label: name.slice(0, 80), sub: [q.size, q.seeds ? '👤 ' + q.seeds : '', s.url ? 'direct' : 'torrent', s._addon].filter(Boolean).join('  '), selected: i === S.idx };
     });

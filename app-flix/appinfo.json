@@ -1,6 +1,6 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "vendor": "community",
   "type": "web",
   "main": "index.html",
