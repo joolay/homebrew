@@ -10,7 +10,7 @@
   "rootRequired": true,
   "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvupdater_1.0.0_all.ipk",
   "ipkHash": {
-    "sha256": "3b93b044a7e56e844fd0cd0f6f77a8abce2e55a07114532adf4f2331f511fb40"
+    "sha256": "2548ba55ac16959bcde678a63abd852869e4343fc21f777e0aac9283ebdd4b20"
   },
-  "ipkSize": 9930
+  "ipkSize": 9916
 }

@@ -25,6 +25,17 @@ def dirs_for(tar, paths):
             if d in seen: continue
             seen.add(d); ti = tarfile.TarInfo(d); ti.type = tarfile.DIRTYPE; fix(ti, 0o777); tar.addfile(ti)
 
+def write_ar(path, members):
+    """The archive in the same layout ares-package and the IPKs that already install on the TV use: member names WITHOUT a trailing slash, file type in the mode (100644),
+    a real timestamp. GNU `ar rcD` writes "name/", mode 644 and time 0, and the TV's installer then fails with "-5: failed to extract package"."""
+    now = int(os.environ.get("SOURCE_DATE_EPOCH", time.time()))
+    with open(path, "wb") as f:
+        f.write(b"!<arch>\n")
+        for name, data in members:
+            hdr = ("%-16s%-12d%-6d%-6d%-8s%-10d`\n" % (name, now, 0, 0, "100644", len(data))).encode("ascii"); assert len(hdr) == 60
+            f.write(hdr); f.write(data)
+            if len(data) % 2: f.write(b"\n")
+
 def build(appdir, svcdir, outdir):
     app = json.load(open(os.path.join(appdir, "appinfo.json")))
     svc = json.load(open(os.path.join(svcdir, "services.json")))["id"] if svcdir else None
@@ -44,11 +55,10 @@ def build(appdir, svcdir, outdir):
     cbuf = io.BytesIO()
     with tarfile.open(fileobj=cbuf, mode="w:gz", format=tarfile.GNU_FORMAT) as t:
         ti = tarfile.TarInfo("control"); raw = ctl.encode(); ti.size = len(raw); fix(ti, 0o666); t.addfile(ti, io.BytesIO(raw))
-    open(os.path.join(work, "debian-binary"), "w").write("2.0\n"); open(os.path.join(work, "control.tar.gz"), "wb").write(cbuf.getvalue()); open(os.path.join(work, "data.tar.gz"), "wb").write(data.getvalue())
     os.makedirs(outdir, exist_ok=True)
     out = os.path.abspath(os.path.join(outdir, "%s_%s_all.ipk" % (app["id"], app["version"])))
     if os.path.exists(out): os.unlink(out)
-    subprocess.check_call(["ar", "rcD", out, "debian-binary", "control.tar.gz", "data.tar.gz"], cwd=work)
+    write_ar(out, [("debian-binary", b"2.0\n"), ("control.tar.gz", cbuf.getvalue()), ("data.tar.gz", data.getvalue())])
     b = open(out, "rb").read()
     print(json.dumps({"ipk": os.path.relpath(out), "sha256": hashlib.sha256(b).hexdigest(), "size": len(b)}))
 
