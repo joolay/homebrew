@@ -10,7 +10,7 @@
   "rootRequired": false,
   "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_2.1.0_all.ipk",
   "ipkHash": {
-    "sha256": "8769470a8c1dcbb2f139a31b43ad46c1a0667b4857efae45b3470b0d45a61a7e"
+    "sha256": "9330b870391d08f4dedbcc1e105206e2fa1bf2c9ccc4f1408093805f62e1333a"
   },
   "ipkSize": 32004
 }
