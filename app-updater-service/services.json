@@ -1,7 +1,0 @@
-{
-  "id": "io.joolay.tvupdater.service",
-  "description": "JoolzTV updater service",
-  "services": [
-    { "name": "io.joolay.tvupdater.service" }
-  ]
-}

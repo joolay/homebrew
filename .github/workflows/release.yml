@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm i -g @webos-tools/cli@3.2.6
-      - run: node app-updater-service/test/test.js && node app-flix/test-launcher.js && node app-tailscale-service/test/test.js
+      - run: node app-updater/test/test.js && node app-flix/test-launcher.js && node app-tailscale-service/test/test.js
       - name: Build and publish
         env:
           EVENT: ${{ github.event_name }}
@@ -52,7 +52,7 @@ jobs:
             publish io.stremio.flix.tv JoolzTV manifest-flix.json false app-flix/largeIcon.png app-flix
           fi
           if [ "$WHICH" = updater ] || [ "$WHICH" = both ]; then
-            publish io.joolay.tvupdater "TV Updater" manifest-updater.json true app-updater/largeIcon.png app-updater app-updater-service
+            publish io.joolay.tvupdater "TV Updater" manifest-updater.json true app-updater/largeIcon.png app-updater
             # make sure Homebrew Channel lists it (added once, in the same commit as its manifest)
             jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvupdater") then . else .packages += [{id:"io.joolay.tvupdater",title:"TV Updater",iconUri:($raw+"/app-updater/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-updater.json"),pool:"main",shortDescription:"Keeps your Homebrew apps up to date, and updates JoolzTV when your server reports a new version",description:"Checks the Homebrew Channel feed and installs newer versions of the apps already on this TV (sha256 checked), including itself. Auto-update runs after boot and every 24 hours. Needs a rooted TV with Homebrew Channel."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
           fi
