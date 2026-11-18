@@ -8,7 +8,7 @@
   "rootRequired": false,
   "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvcctv_1.0.0_all.ipk",
   "ipkHash": {
-    "sha256": "742d437e1e66136d56f2a5546e52f1c8b4b90f7419bb31b252afce758f3d1ca4"
+    "sha256": "4d1e85fa7ea967d4aecba08f115f8b408a6111fb26a847f405aad69db1995153"
   },
-  "ipkSize": 23996
+  "ipkSize": 24000
 }
