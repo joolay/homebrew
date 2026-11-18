@@ -1,6 +1,6 @@
 {
   "id": "io.stremio.flix.tv",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "type": "web",
   "title": "JoolzTV",
   "appDescription": "JoolzTV: the TV launcher for your JoolzTV server. It finds your server at home first, then on your public address, and opens the JoolzTV interface (Apple TV style, up to 12 profiles with one JoolzApp account each, Torrentio sources, your own streaming server). The design and features come from the server, so they update without reinstalling this app. Needs the JoolzTV app on your Umbrel.",
@@ -8,9 +8,9 @@
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-flix/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_2.1.0_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_2.1.1_all.ipk",
   "ipkHash": {
-    "sha256": "9330b870391d08f4dedbcc1e105206e2fa1bf2c9ccc4f1408093805f62e1333a"
+    "sha256": "e426d164bff5cf14a8367836e988b08d60dec420520c218482888312cc4fbd53"
   },
-  "ipkSize": 32004
+  "ipkSize": 23410
 }
