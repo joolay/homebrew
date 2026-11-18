@@ -23,6 +23,7 @@ input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5
 </head>
 <body>
 <div class="wrap" id="root"></div>
+<script src="hb-updater.js"></script>
 <script>
 /* JoolzTV launcher for LG webOS. It only finds your JoolzTV server and opens it: home address first, then the public one.
    Everything you see after that (design, profiles, player) comes from the server, so updates happen there. ES5 on purpose. */
@@ -47,19 +48,21 @@ input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5
       }, function (e) { if (done) return; done = true; clearTimeout(t); bad(e); });
     });
   }
-  /* ---- self-update: when the server says a newer launcher exists, ask the TV Updater service to install it ---- */
-  var APP_ID = 'io.stremio.flix.tv', SVC = 'luna://io.joolay.tvupdater.service/';
+  /* ---- self-update: when the server says a newer launcher exists, install it through Homebrew Channel (hb-updater.js) ---- */
+  var APP_ID = 'io.stremio.flix.tv';
   function cmp(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < 4; i++) { var p = parseInt(x[i], 10) || 0, q = parseInt(y[i], 10) || 0; if (p !== q) return p > q ? 1 : -1; } return 0; }
   function ownVersion(cb) {
     try { var r = new XMLHttpRequest(); r.open('GET', 'appinfo.json'); r.onload = function () { var v = null; try { v = JSON.parse(r.responseText).version; } catch (e) {} cb(v); }; r.onerror = function () { cb(null); }; r.send(); } catch (e) { cb(null); }
   }
-  function svc(method, params, ms, cb) {
-    var done = false, t = setTimeout(function () { if (!done) { done = true; cb(null); } }, ms);
+  function selfUpdate(ms, cb) {                           // installs the newer launcher through Homebrew Channel (no separate updater needed); cb(true) when it was installed
+    var done = false, t = setTimeout(function () { if (!done) { done = true; cb(false); } }, ms);
+    function end(v) { if (done) return; done = true; clearTimeout(t); cb(v); }
     try {
-      var b = new PalmServiceBridge();
-      b.onservicecallback = function (m) { if (done) return; done = true; clearTimeout(t); var j = null; try { j = JSON.parse(m); } catch (e) {} cb(j); };
-      b.call(SVC + method, JSON.stringify(params || {}));
-    } catch (e) { if (!done) { done = true; clearTimeout(t); cb(null); } }
+      HBUpdater.create({}).run({ only: [APP_ID], relaunch: APP_ID }).then(function (items) {
+        var me = null; for (var i = 0; i < items.length; i++) if (items[i].id === APP_ID) me = items[i];
+        end(!!(me && me.state === 'updated'));
+      }, function () { end(false); });
+    } catch (e) { end(false); }
   }
   // Never blocks the app: any problem (no updater installed, no answer, already tried) just opens JoolzTV.
   function maybeUpdate(base, open) {
@@ -76,9 +79,9 @@ input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5
         if (last && last.v === latest && Date.now() - last.t < 6 * 3600e3) return go();   // tried recently: don't loop
         try { localStorage.setItem(key, JSON.stringify({ v: latest, t: Date.now() })); } catch (e) {}
         splash('Updating JoolzTV to ' + latest + '…');
-        svc('updateApp', { id: APP_ID }, 240000, function (r) {
-          if (r && r.returnValue && r.updated) splash('Restarting JoolzTV…');   // the updater reopens the app itself
-          else go();                                                            // no updater, nothing to update, or it failed
+        selfUpdate(240000, function (ok) {
+          if (ok) splash('Restarting JoolzTV…');                                // Homebrew Channel closes this app; a timer reopens it
+          else go();                                                            // Homebrew Channel not there, nothing to update, or it failed
         });
       };
       x.send();

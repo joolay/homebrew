@@ -11,7 +11,8 @@ function run(o) {
       if (o.latest === "down") return this.onerror();
       this.responseText = JSON.stringify({ launcher: { version: o.latest } }); this.onload(); }, 0); }
     function PSB() { this.call = (u, p) => { log.svc.push(u.split("/").pop() + " " + p); if (o.svc === "none") throw new Error("no service"); setTimeout(() => { this.onservicecallback(JSON.stringify(o.svc)); }, 0); }; }
-    const ctx = { document: { getElementById: () => el, addEventListener() {} }, localStorage: { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } },
+    const HB = { create: () => ({ run: (r) => { log.svc.push("updateApp " + JSON.stringify(r)); if (o.svc === "none") return Promise.reject(new Error("no Homebrew Channel")); return Promise.resolve(o.svc.returnValue ? [{ id: "io.stremio.flix.tv", state: o.svc.updated ? "updated" : "current" }] : [{ id: "io.stremio.flix.tv", state: "failed", error: "x" }]); } }) };
+    const ctx = { HBUpdater: HB, document: { getElementById: () => el, addEventListener() {} }, localStorage: { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } },
       fetch: () => Promise.resolve({ json: () => ({ ok: true }) }), XMLHttpRequest: XHR, PalmServiceBridge: PSB, Promise, JSON, Date, console,
       location: { replace: u => { log.opened = u; res(log); } }, window: { close() {} }, setTimeout: (f, ms) => setTimeout(f, ms > 1500 ? 200 : 0), clearTimeout };
     ctx.window.addEventListener = () => {};

@@ -25,61 +25,52 @@ button[disabled]{opacity:.45}
 <div id="msg">Loading…</div>
 <div id="list"></div>
 <div id="log"></div>
+<script src="hb-updater.js"></script>
 <script>
 (function () {
-  var SVC = "luna://io.joolay.tvupdater.service/";
   var $ = function (id) { return document.getElementById(id); };
-  var busy = false, autoOn = true;
+  var busy = false, autoOn = false, items = [];
   var LABEL = { update: "Update available", current: "Up to date", updated: "Updated", failed: "Failed", error: "Feed error", "not-installed": "Not installed", ignored: "Ignored", "needs-root": "Needs root" };
+  var U = HBUpdater.create({ onLog: function () { showLog(); }, onProgress: function (it) { $("msg").textContent = "Installing " + it.title + "…"; } });
+  var launch = {}; try { launch = JSON.parse((window.PalmSystem && window.PalmSystem.launchParams) || "{}") || {}; } catch (e) {}
 
-  function call(method, params, cb) {
-    try {
-      var b = new PalmServiceBridge();
-      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = { returnValue: false, errorText: "Bad answer" }; } cb(j); };
-      b.call(SVC + method, JSON.stringify(params || {}));
-    } catch (e) { cb({ returnValue: false, errorText: "This only works on the TV (no webOS service bridge here)" }); }
-  }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function render(items) {
+  function showLog() { $("log").textContent = U.logs().slice(-6).join("\n"); }
+  function render(list) {
     var h = "";
-    for (var i = 0; i < (items || []).length; i++) {
-      var x = items[i];
+    for (var i = 0; i < (list || []).length; i++) {
+      var x = list[i];
       h += '<div class="row"><div class="t">' + esc(x.title) + '</div><div class="v">' + esc(x.installed || "–") + (x.available && x.available !== x.installed ? " → " + esc(x.available) : "") +
         '</div><div class="s ' + esc(x.state) + '">' + esc(LABEL[x.state] || x.state) + "</div></div>";
       if (x.error) h += '<div class="failed" style="margin:-4px 0 10px 24px;font-size:22px">' + esc(x.error) + "</div>";
     }
-    $("list").innerHTML = h || "";
+    $("list").innerHTML = h;
   }
   function setBusy(b, text) { busy = b; $("check").disabled = b; $("run").disabled = b; if (text !== undefined) $("msg").textContent = text; }
-  function status() {
-    call("status", {}, function (r) {
-      if (!r.returnValue) { $("msg").textContent = r.errorText; return; }
-      autoOn = !!(r.config && r.config.auto && r.boot);
-      $("auto").textContent = "Auto-update: " + (autoOn ? "On (every " + r.config.intervalHours + " h)" : "Off");
-      $("log").textContent = (r.log || []).slice(-6).join("\n");
-      if (r.lastResult && r.lastResult.length) render(r.lastResult);
-      $("msg").textContent = r.lastRun ? "Last run: " + new Date(r.lastRun).toLocaleString() + (r.lastError ? " (" + r.lastError + ")" : "") : "Not run yet.";
-      if (r.running) setTimeout(status, 3000);
-    });
-  }
-  $("check").onclick = function () {
+  function fail(e) { setBusy(false, (e && e.message) || String(e)); showLog(); }
+  function count(list) { var n = 0; for (var i = 0; i < list.length; i++) if (list[i].state === "update") n++; return n; }
+  function check() {
     if (busy) return; setBusy(true, "Checking…");
-    call("check", {}, function (r) { setBusy(false); if (!r.returnValue) { $("msg").textContent = r.errorText; return; } render(r.items);
-      var n = 0; for (var i = 0; i < r.items.length; i++) if (r.items[i].state === "update") n++;
-      $("msg").textContent = n ? n + " update" + (n > 1 ? "s" : "") + " available." : "Everything is up to date."; });
-  };
-  $("run").onclick = function () {
-    if (busy) return; setBusy(true, "Updating… this can take a minute. Don't turn the TV off.");
-    call("run", {}, function (r) { setBusy(false); if (!r.returnValue) { $("msg").textContent = r.errorText; return; } render(r.items); $("msg").textContent = "Done."; status(); });
-  };
+    U.check().then(function (list) { items = list; render(list); var n = count(list); setBusy(false, n ? n + " update" + (n > 1 ? "s" : "") + " available." : "Everything is up to date."); }, fail);
+  }
+  function run(silent) {
+    if (busy) return Promise.resolve(); setBusy(true, "Updating… this can take a minute. Don't turn the TV off.");
+    return U.run({}).then(function (list) { items = list; render(list); var f = 0; for (var i = 0; i < list.length; i++) if (list[i].state === "failed") f++; setBusy(false, f ? f + " failed. See below." : "Done."); showLog(); }, fail);
+  }
+  function paintAuto() { $("auto").textContent = "Auto-update: " + (autoOn ? "On (every 24 h)" : "Off"); }
+  $("check").onclick = check;
+  $("run").onclick = function () { run(); };
   $("auto").onclick = function () {
-    call("setConfig", { auto: !autoOn }, function (r) { if (!r.returnValue) { $("msg").textContent = r.errorText; return; } status(); });
+    U.setBoot(!autoOn, 24).then(function () { autoOn = !autoOn; paintAuto(); $("msg").textContent = autoOn ? "Auto-update is on. The TV checks about 2 minutes after it starts, then every 24 hours." : "Auto-update is off."; }, fail);
   };
   document.addEventListener("keydown", function (e) {
     var k = e.keyCode, b = [$("check"), $("run"), $("auto")], i = b.indexOf(document.activeElement);
     if (k === 37 || k === 39) { b[(i + (k === 39 ? 1 : b.length - 1)) % b.length].focus(); e.preventDefault(); }
     else if (k === 461 || k === 27 || k === 8) { window.close(); }
   });
-  $("check").focus(); status();
+  $("check").focus(); paintAuto();
+  U.bootState().then(function (on) { autoOn = on; paintAuto(); });
+  U.hbcState().then(function (h) { if (!h.ok) $("msg").textContent = "Homebrew Channel's service did not answer. Is Homebrew Channel installed and the TV rooted?"; else if (!launch.auto) $("msg").textContent = "Press Check now."; });
+  if (launch.auto) { $("msg").textContent = "Automatic update…"; run(true).then(function () { setTimeout(function () { try { window.close(); } catch (e) {} }, 20000); }); }
 })();
 </script></body></html>
