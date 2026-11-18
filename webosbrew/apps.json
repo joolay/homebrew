@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 2,
+    "count": 4,
     "maxPage": 1,
-    "itemsTotal": 2
+    "itemsTotal": 4
   },
   "packages": [
     {
@@ -23,6 +23,24 @@
       "pool": "main",
       "shortDescription": "Keeps your TV apps up to date automatically",
       "description": "Keeps the apps on your TV up to date. Checks this repository's feed after the TV starts (and every 24 hours), downloads newer versions over https, checks their sha256, and installs them. Only updates apps already installed; the JoolzTV launcher asks it to update when your server reports a newer version. Needs a rooted TV with Homebrew Channel."
+    },
+    {
+      "id": "io.joolay.tvtailscale",
+      "title": "TV Tailscale",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-tailscale/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-tailscale.json",
+      "pool": "main",
+      "shortDescription": "Puts your TV on your Tailscale network",
+      "description": "Installs and runs Tailscale on this TV (newest build, sha256 checked) so JoolzTV can reach your Umbrel from anywhere. Sign in with an address opened on your phone or an auth key, start at boot, and optionally forward a tailnet address to the TV itself. Needs a rooted TV with Homebrew Channel."
+    },
+    {
+      "id": "io.joolay.tvcctv",
+      "title": "JoolzCCTV",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-cctv/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-cctv.json",
+      "pool": "main",
+      "shortDescription": "Live CCTV wall on the TV",
+      "description": "Opens your JoolzCCTV server (home address first, then public) and shows the live camera wall from all your Hikvision, Dahua and RTSP recorders, with remote-control layouts, saved views and full screen. Sign in with your JoolzApp account."
     }
   ]
 }

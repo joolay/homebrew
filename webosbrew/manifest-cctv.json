@@ -1,0 +1,14 @@
+{
+  "id": "io.joolay.tvcctv",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "JoolzCCTV",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-cctv/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": false,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvcctv_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "742d437e1e66136d56f2a5546e52f1c8b4b90f7419bb31b252afce758f3d1ca4"
+  },
+  "ipkSize": 23996
+}

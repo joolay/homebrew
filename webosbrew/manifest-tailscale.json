@@ -1,0 +1,14 @@
+{
+  "id": "io.joolay.tvtailscale",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "TV Tailscale",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-tailscale/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": true,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvtailscale_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "94e75b90c65db73f91062b8b7849a9287f7ffbfc44695140265b403df942685a"
+  },
+  "ipkSize": 28188
+}
