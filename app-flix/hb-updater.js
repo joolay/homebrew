@@ -85,7 +85,12 @@
         return exec("curl -fsSL --max-time 30 '" + url + "'", 40000).then(function (s) { if (!s) throw e; return s; });
       });
     };
-    function getJson(url) { return getText(url).then(function (t) { return JSON.parse(t); }); }
+    function parseJson(text, what) {                          // a clear message (what + the start of the text) instead of "Unexpected token in JSON"
+      var t = String(text == null ? "" : text), i = t.search(/[\[{]/);
+      try { if (i < 0) throw new Error("no JSON"); return JSON.parse(t.slice(i)); }
+      catch (e) { throw new Error(what + " did not return JSON (" + (t.replace(/\s+/g, " ").slice(0, 50) || "empty") + ")"); }
+    }
+    function getJson(url) { return getText(url).then(function (t) { return parseJson(t, url.replace(/^https:\/\/[^\/]+\//, "")); }); }
 
     function config() {
       var c = store.get("jtv.updcfg") || {};
@@ -99,7 +104,7 @@
     function parseApps(j) { var o = {}; (j.apps || []).forEach(function (a) { if (a && a.id) o[a.id] = a.version; }); return o; }
     function listInstalled() {
       return call(AM + "listApps", {}).then(parseApps).catch(function () {
-        return exec("luna-send -n 1 -f " + AM + "listApps '{}'").then(function (s) { return parseApps(JSON.parse(s.trim().split("\n").pop())); });
+        return exec("luna-send -n 1 " + AM + "listApps '{}'").then(function (s) { return parseApps(parseJson(s, "the TV's app list")); });
       });
     }
     // Is Homebrew Channel's service there, and are we root through it?
