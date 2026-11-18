@@ -1,54 +1,61 @@
 name: Release
+# Builds an IPK, commits it to dist/, and updates the Homebrew Channel files on main (webosbrew/manifest-*.json and apps.json),
+# which is what Homebrew Channel and the JoolzTV server's /tv/update read. Run it from Actions > Release > Run workflow
+# (no tag needed), or push a tag: v2.1.0 (JoolzTV launcher) or updater-v1.0.0 (TV Updater).
 on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to release (version comes from its appinfo.json)'
+        type: choice
+        options: [both, launcher, updater]
+        default: both
   push:
     tags: ['v*', 'updater-v*']
 permissions:
   contents: write
+concurrency: release
 jobs:
   release:
-    if: ${{ !startsWith(github.ref_name, 'updater-v') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: main }
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm i -g @webos-tools/cli@3.2.6
-      - run: node app-flix/test-launcher.js
-      - name: Package
+      - run: node app-updater-service/test/test.js && node app-flix/test-launcher.js
+      - name: Build and publish
+        env:
+          EVENT: ${{ github.event_name }}
+          APP_INPUT: ${{ github.event.inputs.app }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          V=${GITHUB_REF_NAME#v}
-          jq --arg v "$V" '.version=$v' app-flix/appinfo.json > t.json && mv t.json app-flix/appinfo.json
-          ares-package --no-minify app-flix -o .
-          IPK=io.stremio.flix.tv_${V}_all.ipk
-          echo "IPK=$IPK" >> $GITHUB_ENV
-          jq -n --arg v "$V" --arg ipk "$IPK" --arg sha "$(sha256sum $IPK | cut -d' ' -f1)" --argjson size $(stat -c%s $IPK) --arg repo "$GITHUB_REPOSITORY" \
-            '{id:"io.stremio.flix.tv",version:$v,type:"web",title:"JoolzTV",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app-flix/largeIcon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:false,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ env.IPK }}
-            manifest.json
-  release-updater:
-    if: ${{ startsWith(github.ref_name, 'updater-v') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - run: npm i -g @webos-tools/cli@3.2.6
-      - run: node app-updater-service/test/test.js
-      - name: Package
-        run: |
-          V=${GITHUB_REF_NAME#updater-v}
-          jq --arg v "$V" '.version=$v' app-updater/appinfo.json > t.json && mv t.json app-updater/appinfo.json
-          jq --arg v "$V" '.version=$v' app-updater-service/package.json > t.json && mv t.json app-updater-service/package.json
-          ares-package --no-minify app-updater app-updater-service -o .
-          IPK=io.joolay.tvupdater_${V}_all.ipk
-          echo "IPK=$IPK" >> $GITHUB_ENV
-          jq -n --arg v "$V" --arg ipk "$IPK" --arg sha "$(sha256sum $IPK | cut -d' ' -f1)" --argjson size $(stat -c%s $IPK) --arg repo "$GITHUB_REPOSITORY" \
-            '{id:"io.joolay.tvupdater",version:$v,type:"web",title:"TV Updater",iconUri:("https://raw.githubusercontent.com/"+$repo+"/main/app-updater/largeIcon.png"),sourceUrl:("https://github.com/"+$repo),rootRequired:true,ipkUrl:$ipk,ipkHash:{sha256:$sha},ipkSize:$size}' > manifest.json
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            ${{ env.IPK }}
-            manifest.json
+          set -euo pipefail
+          RAW="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main"
+          WHICH=both
+          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
+          mkdir -p dist
+          publish() { # id title dir-or-dirs manifest-file rootRequired iconpath
+            ID=$1; TITLE=$2; MAN=$3; ROOT=$4; ICON=$5; shift 5
+            V=$(jq -r .version "$1/appinfo.json")
+            ares-package --no-minify "$@" -o dist
+            IPK="${ID}_${V}_all.ipk"; test -f "dist/$IPK"
+            SHA=$(sha256sum "dist/$IPK" | cut -d' ' -f1); SIZE=$(stat -c%s "dist/$IPK")
+            OLD=$(cat "webosbrew/$MAN" 2>/dev/null || echo '{}')
+            echo "$OLD" | jq --arg id "$ID" --arg t "$TITLE" --arg v "$V" --arg url "$RAW/dist/$IPK" --arg sha "$SHA" --argjson size "$SIZE" --argjson root "$ROOT" --arg icon "$RAW/$ICON" --arg src "https://github.com/$GITHUB_REPOSITORY" \
+              '. + {id:$id,version:$v,type:"web",title:$t,iconUri:$icon,sourceUrl:$src,rootRequired:$root,ipkUrl:$url,ipkHash:{sha256:$sha},ipkSize:$size}' > "webosbrew/$MAN.tmp"
+            mv "webosbrew/$MAN.tmp" "webosbrew/$MAN"
+            echo "Built $IPK ($SIZE bytes, sha256 $SHA)"
+          }
+          if [ "$WHICH" = launcher ] || [ "$WHICH" = both ]; then
+            publish io.stremio.flix.tv JoolzTV manifest-flix.json false app-flix/largeIcon.png app-flix
+          fi
+          if [ "$WHICH" = updater ] || [ "$WHICH" = both ]; then
+            publish io.joolay.tvupdater "TV Updater" manifest-updater.json true app-updater/largeIcon.png app-updater app-updater-service
+            # make sure Homebrew Channel lists it (added once, in the same commit as its manifest)
+            jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvupdater") then . else .packages += [{id:"io.joolay.tvupdater",title:"TV Updater",iconUri:($raw+"/app-updater/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-updater.json"),pool:"main",shortDescription:"Keeps your Homebrew apps up to date, and updates JoolzTV when your server reports a new version",description:"Checks the Homebrew Channel feed and installs newer versions of the apps already on this TV (sha256 checked), including itself. Auto-update runs after boot and every 24 hours. Needs a rooted TV with Homebrew Channel."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
+          fi
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist webosbrew
+          if git diff --cached --quiet; then echo "Nothing changed"; else git commit -m "Release: $WHICH (IPK, manifests, apps.json)"; git push origin HEAD:main; fi

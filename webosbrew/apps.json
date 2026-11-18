@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 1,
+    "count": 2,
     "maxPage": 1,
-    "itemsTotal": 1
+    "itemsTotal": 2
   },
   "packages": [
     {
@@ -14,6 +14,15 @@
       "pool": "main",
       "shortDescription": "Launcher for your JoolzTV server: Apple TV style interface, profiles and Torrentio sources",
       "description": "JoolzTV: the TV launcher for your JoolzTV server. It finds your server at home first, then on your public address, and opens the JoolzTV interface (Apple TV style, up to 12 profiles with one JoolzApp account each, Torrentio sources, your own streaming server). The design and features come from the server, so they update without reinstalling this app. Needs the JoolzTV app on your Umbrel."
+    },
+    {
+      "id": "io.joolay.tvupdater",
+      "title": "TV Updater",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-updater/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-updater.json",
+      "pool": "main",
+      "shortDescription": "Keeps your TV apps up to date automatically",
+      "description": "Keeps the apps on your TV up to date. Checks this repository's feed after the TV starts (and every 24 hours), downloads newer versions over https, checks their sha256, and installs them. Only updates apps already installed; the JoolzTV launcher asks it to update when your server reports a newer version. Needs a rooted TV with Homebrew Channel."
     }
   ]
 }

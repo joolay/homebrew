@@ -1,0 +1,16 @@
+{
+  "id": "io.joolay.tvupdater",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "TV Updater",
+  "appDescription": "Keeps the apps on your TV up to date. Checks this repository's feed after the TV starts (and every 24 hours), downloads newer versions over https, checks their sha256, and installs them. Only updates apps already installed; the JoolzTV launcher asks it to update when your server reports a newer version. Needs a rooted TV with Homebrew Channel.",
+  "description": "Keeps the apps on your TV up to date. Checks this repository's feed after the TV starts (and every 24 hours), downloads newer versions over https, checks their sha256, and installs them. Only updates apps already installed; the JoolzTV launcher asks it to update when your server reports a newer version. Needs a rooted TV with Homebrew Channel.",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-updater/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": true,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvupdater_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "3b93b044a7e56e844fd0cd0f6f77a8abce2e55a07114532adf4f2331f511fb40"
+  },
+  "ipkSize": 9930
+}
