@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>TV Updater</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Chromium 53: no grid, no gap, no sticky, no min()/clamp() */
+*{box-sizing:border-box}
+body{margin:0;background:#0b0d12;color:#f2f4f8;font:28px/1.35 sans-serif;padding:60px 80px}
+h1{margin:0 0 6px;font-size:52px}
+.sub{color:#9aa3b2;margin-bottom:34px}
+.bar{margin-bottom:30px}
+button{font:inherit;color:#fff;background:rgba(255,255,255,.12);border:2px solid transparent;border-radius:16px;padding:14px 30px;margin-right:18px;outline:0}
+button:focus{border-color:#4d9bff;background:rgba(77,155,255,.35)}
+button[disabled]{opacity:.45}
+.row{display:flex;align-items:center;padding:16px 24px;margin-bottom:10px;border-radius:16px;background:rgba(255,255,255,.07)}
+.row .t{flex:1}.row .v{width:380px;color:#9aa3b2}.row .s{width:260px;text-align:right}
+.update,.updated{color:#6ee7a0}.failed,.error{color:#ff7b7b}.needs-root,.ignored,.not-installed{color:#9aa3b2}
+#msg{margin:18px 0;color:#9aa3b2;min-height:40px}
+#log{font:20px/1.4 monospace;color:#7d8696;white-space:pre-wrap;margin-top:24px;max-height:200px;overflow:hidden}
+</style></head><body>
+<h1>TV Updater</h1>
+<div class="sub">Keeps your Homebrew apps up to date. Only apps already on this TV are updated.</div>
+<div class="bar">
+  <button id="check">Check now</button><button id="run">Update all</button><button id="auto">Auto-update: …</button>
+</div>
+<div id="msg">Loading…</div>
+<div id="list"></div>
+<div id="log"></div>
+<script>
+(function () {
+  var SVC = "luna://io.joolay.tvupdater.service/";
+  var $ = function (id) { return document.getElementById(id); };
+  var busy = false, autoOn = true;
+  var LABEL = { update: "Update available", current: "Up to date", updated: "Updated", failed: "Failed", error: "Feed error", "not-installed": "Not installed", ignored: "Ignored", "needs-root": "Needs root" };
+
+  function call(method, params, cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = { returnValue: false, errorText: "Bad answer" }; } cb(j); };
+      b.call(SVC + method, JSON.stringify(params || {}));
+    } catch (e) { cb({ returnValue: false, errorText: "This only works on the TV (no webOS service bridge here)" }); }
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function render(items) {
+    var h = "";
+    for (var i = 0; i < (items || []).length; i++) {
+      var x = items[i];
+      h += '<div class="row"><div class="t">' + esc(x.title) + '</div><div class="v">' + esc(x.installed || "–") + (x.available && x.available !== x.installed ? " → " + esc(x.available) : "") +
+        '</div><div class="s ' + esc(x.state) + '">' + esc(LABEL[x.state] || x.state) + "</div></div>";
+      if (x.error) h += '<div class="failed" style="margin:-4px 0 10px 24px;font-size:22px">' + esc(x.error) + "</div>";
+    }
+    $("list").innerHTML = h || "";
+  }
+  function setBusy(b, text) { busy = b; $("check").disabled = b; $("run").disabled = b; if (text !== undefined) $("msg").textContent = text; }
+  function status() {
+    call("status", {}, function (r) {
+      if (!r.returnValue) { $("msg").textContent = r.errorText; return; }
+      autoOn = !!(r.config && r.config.auto && r.boot);
+      $("auto").textContent = "Auto-update: " + (autoOn ? "On (every " + r.config.intervalHours + " h)" : "Off");
+      $("log").textContent = (r.log || []).slice(-6).join("\n");
+      if (r.lastResult && r.lastResult.length) render(r.lastResult);
+      $("msg").textContent = r.lastRun ? "Last run: " + new Date(r.lastRun).toLocaleString() + (r.lastError ? " (" + r.lastError + ")" : "") : "Not run yet.";
+      if (r.running) setTimeout(status, 3000);
+    });
+  }
+  $("check").onclick = function () {
+    if (busy) return; setBusy(true, "Checking…");
+    call("check", {}, function (r) { setBusy(false); if (!r.returnValue) { $("msg").textContent = r.errorText; return; } render(r.items);
+      var n = 0; for (var i = 0; i < r.items.length; i++) if (r.items[i].state === "update") n++;
+      $("msg").textContent = n ? n + " update" + (n > 1 ? "s" : "") + " available." : "Everything is up to date."; });
+  };
+  $("run").onclick = function () {
+    if (busy) return; setBusy(true, "Updating… this can take a minute. Don't turn the TV off.");
+    call("run", {}, function (r) { setBusy(false); if (!r.returnValue) { $("msg").textContent = r.errorText; return; } render(r.items); $("msg").textContent = "Done."; status(); });
+  };
+  $("auto").onclick = function () {
+    call("setConfig", { auto: !autoOn }, function (r) { if (!r.returnValue) { $("msg").textContent = r.errorText; return; } status(); });
+  };
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode, b = [$("check"), $("run"), $("auto")], i = b.indexOf(document.activeElement);
+    if (k === 37 || k === 39) { b[(i + (k === 39 ? 1 : b.length - 1)) % b.length].focus(); e.preventDefault(); }
+    else if (k === 461 || k === 27 || k === 8) { window.close(); }
+  });
+  $("check").focus(); status();
+})();
+</script></body></html>

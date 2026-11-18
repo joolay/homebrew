@@ -47,6 +47,43 @@ input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5
       }, function (e) { if (done) return; done = true; clearTimeout(t); bad(e); });
     });
   }
+  /* ---- self-update: when the server says a newer launcher exists, ask the TV Updater service to install it ---- */
+  var APP_ID = 'io.stremio.flix.tv', SVC = 'luna://io.joolay.tvupdater.service/';
+  function cmp(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < 4; i++) { var p = parseInt(x[i], 10) || 0, q = parseInt(y[i], 10) || 0; if (p !== q) return p > q ? 1 : -1; } return 0; }
+  function ownVersion(cb) {
+    try { var r = new XMLHttpRequest(); r.open('GET', 'appinfo.json'); r.onload = function () { var v = null; try { v = JSON.parse(r.responseText).version; } catch (e) {} cb(v); }; r.onerror = function () { cb(null); }; r.send(); } catch (e) { cb(null); }
+  }
+  function svc(method, params, ms, cb) {
+    var done = false, t = setTimeout(function () { if (!done) { done = true; cb(null); } }, ms);
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { if (done) return; done = true; clearTimeout(t); var j = null; try { j = JSON.parse(m); } catch (e) {} cb(j); };
+      b.call(SVC + method, JSON.stringify(params || {}));
+    } catch (e) { if (!done) { done = true; clearTimeout(t); cb(null); } }
+  }
+  // Never blocks the app: any problem (no updater installed, no answer, already tried) just opens JoolzTV.
+  function maybeUpdate(base, open) {
+    var url = base.replace(/\/+$/, '') + '/tv/update', done = false;
+    var go = function () { if (!done) { done = true; open(); } };
+    ownVersion(function (mine) {
+      if (!mine) return go();
+      var x = new XMLHttpRequest(); x.open('GET', url); x.timeout = 5000;
+      x.onerror = x.ontimeout = go;
+      x.onload = function () {
+        var latest = null; try { latest = JSON.parse(x.responseText).launcher.version; } catch (e) {}
+        if (!latest || cmp(latest, mine) <= 0) return go();
+        var key = 'jtv.updTry', last = null; try { last = JSON.parse(localStorage.getItem(key)); } catch (e) {}
+        if (last && last.v === latest && Date.now() - last.t < 6 * 3600e3) return go();   // tried recently: don't loop
+        try { localStorage.setItem(key, JSON.stringify({ v: latest, t: Date.now() })); } catch (e) {}
+        splash('Updating JoolzTV to ' + latest + '…');
+        svc('updateApp', { id: APP_ID }, 240000, function (r) {
+          if (r && r.returnValue && r.updated) splash('Restarting JoolzTV…');   // the updater reopens the app itself
+          else go();                                                            // no updater, nothing to update, or it failed
+        });
+      };
+      x.send();
+    });
+  }
   function boot() {
     if (booting) return; booting = true; clearTimers();
     var addrs = get(), i = 0, errs = [];
@@ -54,7 +91,7 @@ input.focus{border-color:#fff;background:rgba(255,255,255,.2);box-shadow:0 0 0 5
       if (i >= addrs.length) { booting = false; return fail(errs); }
       var a = addrs[i++], home = i === 1;
       splash(home ? 'Looking for JoolzTV at home…' : 'Trying your public address…');
-      probe(a, home ? 4000 : 9000).then(function (ok) { splash('Opening JoolzTV…'); location.replace(ok.replace(/\/+$/, '') + '/?tv=1'); }, function (e) { errs.push(a + ' (' + (e && e.message || 'no answer') + ')'); tryNext(); });
+      probe(a, home ? 4000 : 9000).then(function (ok) { maybeUpdate(ok, function () { splash('Opening JoolzTV…'); location.replace(ok.replace(/\/+$/, '') + '/?tv=1'); }); }, function (e) { errs.push(a + ' (' + (e && e.message || 'no answer') + ')'); tryNext(); });
     }
     splash('Starting…');
     // hold the Red button during the splash to change the addresses

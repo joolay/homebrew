@@ -1,0 +1,7 @@
+{
+  "name": "io.joolay.tvupdater.service",
+  "version": "1.0.0",
+  "description": "Checks the Homebrew Channel feed and installs newer IPKs on a rooted LG webOS TV",
+  "main": "updater.js",
+  "private": true
+}
