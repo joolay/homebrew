@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>TV Tailscale</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Chromium 53: no grid, no gap, no sticky, no min()/clamp() */
+*{box-sizing:border-box}
+body{margin:0;background:#0b0d12;color:#f2f4f8;font:28px/1.35 sans-serif;padding:50px 80px}
+h1{margin:0 0 6px;font-size:52px}
+.sub{color:#9aa3b2;margin-bottom:26px}
+.bar{margin-bottom:14px}
+button,input{font:inherit;color:#fff;background:rgba(255,255,255,.12);border:2px solid transparent;border-radius:16px;padding:12px 28px;margin:0 16px 14px 0;outline:0}
+input{width:560px;background:rgba(255,255,255,.07)}
+button:focus,input:focus{border-color:#4d9bff;background:rgba(77,155,255,.35)}
+button[disabled]{opacity:.45}
+.card{padding:18px 26px;margin-bottom:16px;border-radius:16px;background:rgba(255,255,255,.07)}
+.big{font-size:40px}.ok{color:#6ee7a0}.bad{color:#ff7b7b}.dim{color:#9aa3b2}.url{color:#8fc1ff;font-size:36px;word-break:break-all}
+.row{display:flex;align-items:center;padding:8px 0}.row .t{flex:1}.row .v{width:300px;color:#9aa3b2}.row .s{width:140px;text-align:right}
+#msg{margin:8px 0 14px;color:#9aa3b2;min-height:38px}
+#log{font:19px/1.35 monospace;color:#7d8696;white-space:pre-wrap;margin-top:12px;max-height:130px;overflow:hidden}
+</style></head><body>
+<h1>TV Tailscale</h1>
+<div class="sub">Puts this TV on your Tailscale network, so it can reach your Umbrel from anywhere.</div>
+<div class="bar"><button id="install">Install</button><button id="connect">Connect</button><button id="auto">Start at boot: …</button><button id="logout">Log out</button></div>
+<div id="msg">Loading…</div>
+<div class="card" id="state"></div>
+<div id="peers"></div>
+<div class="bar"><input id="key" type="text" placeholder="Auth key (tskey-…), optional" autocomplete="off"><input id="fwd" type="text" placeholder="Forward: umbrel:3901" autocomplete="off"><button id="save">Save forward</button></div>
+<div id="log"></div>
+<script>
+(function () {
+  var SVC = "luna://io.joolay.tvtailscale.service/";
+  var $ = function (id) { return document.getElementById(id); };
+  var busy = false, last = null, timer = null;
+
+  function call(method, params, cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = { returnValue: false, errorText: "Bad answer" }; } cb(j); };
+      b.call(SVC + method, JSON.stringify(params || {}));
+    } catch (e) { cb({ returnValue: false, errorText: "This only works on the TV (no webOS service bridge here)" }); }
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function setBusy(b, text) { busy = b; $("install").disabled = b; $("connect").disabled = b; if (text !== undefined) $("msg").textContent = text; }
+
+  function render(r) {
+    last = r;
+    var t = r.tailnet, h;
+    if (!r.installed) h = '<div class="big dim">Tailscale is not installed</div><div class="dim">Choose Install. It downloads the newest build for this TV (checked with sha256).</div>';
+    else if (!r.daemon) h = '<div class="big dim">Off</div><div class="dim">' + esc(r.version || "") + " &middot; " + (r.mode === "tun" ? "full network access (TUN)" : "userspace (use Forward)") + "</div>";
+    else if (t && t.connected) {
+      h = '<div class="big ok">Connected</div><div>' + esc(t.self.name) + " &middot; " + esc((t.self.ips || []).join("  ")) + '</div><div class="dim">' + esc(r.version || "") + " &middot; " + (r.mode === "tun" ? "full network access (TUN)" : "userspace (use Forward)") + "</div>";
+    } else if (t && t.authUrl) {
+      h = '<div class="big">Sign in on your phone</div><div class="dim">Open this address, sign in, and approve this TV:</div><div class="url">' + esc(t.authUrl) + "</div>";
+    } else h = '<div class="big">Connecting…</div><div class="dim">' + esc(t ? t.state : "starting") + "</div>";
+    if (t && t.health && t.health.length) h += '<div class="bad" style="font-size:22px;margin-top:6px">' + esc(t.health[0]) + "</div>";
+    $("state").innerHTML = h;
+
+    var p = "", peers = (t && t.connected && t.peers) || [];
+    for (var i = 0; i < peers.length && i < 6; i++)
+      p += '<div class="row"><div class="t">' + esc(peers[i].name) + '</div><div class="v">' + esc(peers[i].ip) + '</div><div class="s ' + (peers[i].online ? "ok" : "dim") + '">' + (peers[i].online ? "online" : "offline") + "</div></div>";
+    $("peers").innerHTML = p ? '<div class="card">' + p + "</div>" : "";
+
+    $("install").textContent = r.installed ? "Update" : "Install";
+    $("connect").textContent = r.daemon ? "Disconnect" : "Connect";
+    $("connect").disabled = busy || !r.installed;
+    $("auto").textContent = "Start at boot: " + (r.config && r.config.auto && r.boot ? "On" : "Off");
+    $("logout").disabled = !r.installed;
+    if (r.config && r.config.forwards && r.config.forwards.length && document.activeElement !== $("fwd")) $("fwd").value = r.config.forwards[0].host + ":" + r.config.forwards[0].port;
+    $("log").textContent = (r.log || []).slice(-5).join("\n");
+    if (r.lastError && !busy) $("msg").textContent = r.lastError;
+  }
+  function status() {
+    clearTimeout(timer);
+    call("status", {}, function (r) {
+      if (!r.returnValue) { $("msg").textContent = r.errorText; return; }
+      render(r);
+      var wait = r.busy || (r.daemon && !(r.tailnet && r.tailnet.connected));
+      timer = setTimeout(status, wait ? 2500 : 10000);
+    });
+  }
+  function done(r, ok) { setBusy(false); $("msg").textContent = r.returnValue ? ok : r.errorText; status(); }
+
+  $("install").onclick = function () { if (busy) return; setBusy(true, "Downloading Tailscale… this can take a minute. Don't turn the TV off."); call("install", {}, function (r) { done(r, "Installed."); }); };
+  $("connect").onclick = function () {
+    if (busy) return;
+    if (last && last.daemon) { setBusy(true, "Disconnecting…"); call("disconnect", {}, function (r) { done(r, "Disconnected."); }); return; }
+    var key = $("key").value.replace(/\s/g, "");
+    setBusy(true, "Connecting…");
+    call("connect", key ? { authKey: key } : {}, function (r) { $("key").value = ""; done(r, key ? "Connecting with your key…" : "Connecting… if a sign-in address appears, open it on your phone."); });
+  };
+  $("auto").onclick = function () { var on = !(last && last.config && last.config.auto && last.boot); call("setConfig", { auto: on }, function (r) { done(r, on ? "Tailscale will start when the TV starts." : "Won't start at boot."); }); };
+  $("logout").onclick = function () { if (busy) return; setBusy(true, "Logging out…"); call("logout", {}, function (r) { done(r, "Logged out. This TV is forgotten by your tailnet once you remove it in the Tailscale admin page."); }); };
+  $("save").onclick = function () { call("setConfig", { forward: $("fwd").value }, function (r) { done(r, r.returnValue ? ($("fwd").value ? "Saved. Reconnect to apply. Then open http://127.0.0.1:<port> on this TV." : "Forward cleared.") : r.errorText); }); };
+
+  var order = [["install", "connect", "auto", "logout"], ["key", "fwd", "save"]];
+  function pos() { var id = document.activeElement && document.activeElement.id; for (var r = 0; r < order.length; r++) { var c = order[r].indexOf(id); if (c >= 0) return [r, c]; } return [0, 0]; }
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode, p = pos(), r = p[0], c = p[1], typing = document.activeElement && document.activeElement.tagName === "INPUT";
+    if (k === 461 || k === 27) { window.close(); return; }
+    if (k === 38 || k === 40) { r = Math.max(0, Math.min(order.length - 1, r + (k === 40 ? 1 : -1))); c = Math.min(c, order[r].length - 1); }
+    else if ((k === 37 || k === 39) && !typing) { c = (c + (k === 39 ? 1 : order[r].length - 1)) % order[r].length; }
+    else return;
+    var t = $(order[r][c]); if (t) t.focus(); e.preventDefault();
+  });
+  $("connect").focus(); status();
+})();
+</script></body></html>

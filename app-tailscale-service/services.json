@@ -1,0 +1,7 @@
+{
+  "id": "io.joolay.tvtailscale.service",
+  "description": "TV Tailscale service",
+  "services": [
+    { "name": "io.joolay.tvtailscale.service" }
+  ]
+}
