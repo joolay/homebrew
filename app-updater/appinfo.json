@@ -1,13 +1,13 @@
 {
   "id": "io.joolay.tvupdater",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "vendor": "joolay",
   "type": "web",
   "main": "index.html",
   "title": "TV Updater",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
-  "bgColor": "#0b0d12",
+  "iconColor": "#369ae4", "bgColor": "#0b0d12",
   "resolution": "1920x1080",
   "disableBackHistoryAPI": true,
   "inspectable": true
