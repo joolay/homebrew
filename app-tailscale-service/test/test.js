@@ -9,6 +9,13 @@ assert.deepStrictEqual(c.forwards, [{ listen: 3901, host: "umbrel", port: 3901 }
 assert.deepStrictEqual(core.parseForward(" umbrel:3901 "), { listen: 3901, host: "umbrel", port: 3901 });
 assert.strictEqual(core.parseForward("umbrel"), null); assert.strictEqual(core.parseForward("a b:80"), null); assert.strictEqual(core.parseForward("x:70000"), null);
 
+// ---- install folder: makes missing parents, skips folders it cannot write, and says why when none work
+var made = {};
+var fakeFs = function (denyAccess, denyMkdir) { return { exists: function (d) { return !!made[d] || d === "/" || d === "/media" || d === "/var"; }, mkdir: function (d) { if (denyMkdir && d.indexOf(denyMkdir) === 0) { var e = new Error("no"); e.code = "EACCES"; throw e; } made[d] = 1; }, access: function (d) { if (denyAccess === d) { var e = new Error("no"); e.code = "EACCES"; throw e; } } }; };
+assert.deepStrictEqual(core.pickDir(fakeFs(), ["/media/developer/x"]), { dir: "/media/developer/x" }); assert.ok(made["/media/developer"], "parent folder is created too");
+made = {}; assert.deepStrictEqual(core.pickDir(fakeFs("/media/developer/x"), ["/media/developer/x", "/var/lib/x"]), { dir: "/var/lib/x" });
+made = {}; var none = core.pickDir(fakeFs("/a", "/var"), ["/a", "/var/lib/x"]); assert.strictEqual(none.dir, undefined); assert.ok(/^\/a: EACCES/.test(none.errors[0]) && /^\/var\/lib\/x: EACCES/.test(none.errors[1]), "reasons are reported");
+
 // ---- build choice
 assert.strictEqual(core.archFor("armv7l"), "arm"); assert.strictEqual(core.archFor("aarch64"), "arm64"); assert.strictEqual(core.archFor("x86_64"), "amd64");
 assert.throws(function () { core.archFor("mips"); });

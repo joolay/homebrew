@@ -14,10 +14,9 @@ var SOCKET = "/tmp/joolay-tailscaled.sock";
 var state = { busy: false, lastError: null, log: [] };
 
 function dir() {
-  for (var i = 0; i < DIRS.length; i++) {
-    try { if (!fs.existsSync(DIRS[i])) fs.mkdirSync(DIRS[i]); fs.accessSync(DIRS[i], fs.W_OK); return DIRS[i]; } catch (e) {}
-  }
-  throw new Error("No writable folder on the TV");
+  var r = core.pickDir({ exists: fs.existsSync, mkdir: function (d) { fs.mkdirSync(d); }, access: function (d) { fs.accessSync(d, fs.W_OK); } }, DIRS);
+  if (r.dir) return r.dir;
+  throw new Error("No writable folder on the TV (running as user " + (process.getuid ? process.getuid() : "?") + "; " + r.errors.join(", ") + ")");
 }
 function P() {
   var d = dir();

@@ -220,7 +220,20 @@ function makeForwarder(f, proxyPort, log) {
   return srv;
 }
 
+// First folder in `dirs` the service can create and write to. deps: { exists, mkdir, access } (fs-like). Makes missing parents too
+// (this node may be too old for mkdir's recursive option). Returns { dir } or { errors: ["path: reason", ...] }.
+function pickDir(deps, dirs) {
+  var errors = [];
+  function mkdirp(d) { var parent = d.replace(/\/[^\/]+\/?$/, ""); if (parent && parent !== d && !deps.exists(parent)) mkdirp(parent); if (!deps.exists(d)) deps.mkdir(d); }
+  for (var i = 0; i < dirs.length; i++) {
+    try { mkdirp(dirs[i]); deps.access(dirs[i]); return { dir: dirs[i] }; }
+    catch (e) { errors.push(dirs[i] + ": " + (e && e.code ? e.code : String(e && e.message || e).slice(0, 60))); }
+  }
+  return { errors: errors };
+}
+
 module.exports = {
+  pickDir: pickDir,
   DEFAULTS: DEFAULTS, PKGS: PKGS, normalizeConfig: normalizeConfig, parseForward: parseForward, archFor: archFor, pickTarball: pickTarball, parseSha: parseSha,
   sha256: sha256, fetchTailscale: fetchTailscale, chooseMode: chooseMode, daemonArgs: daemonArgs, upArgs: upArgs, bootScript: bootScript, shq: shq,
   summarize: summarize, socks5Connect: socks5Connect, makeForwarder: makeForwarder

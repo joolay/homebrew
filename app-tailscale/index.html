@@ -39,6 +39,25 @@ button[disabled]{opacity:.45}
       b.call(SVC + method, JSON.stringify(params || {}));
     } catch (e) { cb({ returnValue: false, errorText: "This only works on the TV (no webOS service bridge here)" }); }
   }
+  // The service may run as a normal user that cannot create its folder. Homebrew Channel's own service runs commands as root, so when the
+  // service says "No writable folder" the app makes the folders and opens them up once, then tries again.
+  var PREP = "mkdir -p /var/lib/joolay-tailscale /media/developer/joolay-tailscale && chmod 777 /var/lib/joolay-tailscale /media/developer/joolay-tailscale && echo ok";
+  function prepFolders(cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = {}; } cb(j.returnValue !== false && /ok/.test(String(j.stdoutString || j.stdout || ""))); };
+      b.call("luna://org.webosbrew.hbchannel.service/exec", JSON.stringify({ command: PREP }));
+    } catch (e) { cb(false); }
+  }
+  function callFix(method, params, cb) {
+    call(method, params, function (r) {
+      if (r.returnValue === false && /No writable folder/.test(r.errorText || "")) {
+        $("msg").textContent = "Making a folder for Tailscale…";
+        return prepFolders(function (ok) { if (!ok) return cb(r); call(method, params, cb); });
+      }
+      cb(r);
+    });
+  }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function setBusy(b, text) { busy = b; $("install").disabled = b; $("connect").disabled = b; if (text !== undefined) $("msg").textContent = text; }
 
@@ -80,13 +99,13 @@ button[disabled]{opacity:.45}
   }
   function done(r, ok) { setBusy(false); $("msg").textContent = r.returnValue ? ok : r.errorText; status(); }
 
-  $("install").onclick = function () { if (busy) return; setBusy(true, "Downloading Tailscale… this can take a minute. Don't turn the TV off."); call("install", {}, function (r) { done(r, "Installed."); }); };
+  $("install").onclick = function () { if (busy) return; setBusy(true, "Downloading Tailscale… this can take a minute. Don't turn the TV off."); callFix("install", {}, function (r) { done(r, "Installed."); }); };
   $("connect").onclick = function () {
     if (busy) return;
     if (last && last.daemon) { setBusy(true, "Disconnecting…"); call("disconnect", {}, function (r) { done(r, "Disconnected."); }); return; }
     var key = $("key").value.replace(/\s/g, "");
     setBusy(true, "Connecting…");
-    call("connect", key ? { authKey: key } : {}, function (r) { $("key").value = ""; done(r, key ? "Connecting with your key…" : "Connecting… if a sign-in address appears, open it on your phone."); });
+    callFix("connect", key ? { authKey: key } : {}, function (r) { $("key").value = ""; done(r, key ? "Connecting with your key…" : "Connecting… if a sign-in address appears, open it on your phone."); });
   };
   $("auto").onclick = function () { var on = !(last && last.config && last.config.auto && last.boot); call("setConfig", { auto: on }, function (r) { done(r, on ? "Tailscale will start when the TV starts." : "Won't start at boot."); }); };
   $("logout").onclick = function () { if (busy) return; setBusy(true, "Logging out…"); call("logout", {}, function (r) { done(r, "Logged out. This TV is forgotten by your tailnet once you remove it in the Tailscale admin page."); }); };
