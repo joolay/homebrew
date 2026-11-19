@@ -64,17 +64,24 @@ h1{margin:0 0 6px;font-size:44px}
   function sq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 
   // Direct call first. If webOS refuses it, the same call is made as root through Homebrew Channel's service.
+  // Short, limited searches only: a find over the whole TV can run for minutes. Scripts go through base64 so quotes cannot break them.
+  var ROOTS = "/usr/palm /usr/share /media/cryptofs/apps /var/palm /mnt/otycrypt /home/root /var/lib /etc";
   var INSPECT = {
-    files: 'for d in $(find / -maxdepth 6 -type d -iname "*netflix*" -not -path "/proc/*" -not -path "/sys/*" 2>/dev/null | head -12); do echo "== $d"; find "$d" -maxdepth 3 -type f -printf "%s  %p\\n" 2>/dev/null | head -25; echo "-- files mentioning profile:"; grep -rIil profile "$d" 2>/dev/null | head -10; done; echo; echo "-- app-wide data dirs:"; ls -d /var/palm/data/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* /home/root/.config/*etflix* 2>/dev/null',
-    manifest: 'for f in $(find / -maxdepth 6 -path "*etflix*" -name appinfo.json -not -path "/proc/*" 2>/dev/null | head -3); do echo "== $f"; head -c 2500 "$f"; echo; done'
+    files: 'echo "searching (read only)..."; for d in $(timeout 20 find ' + ROOTS + ' -maxdepth 5 -type d -iname "*netflix*" 2>/dev/null | head -10); do echo "== $d"; find "$d" -maxdepth 2 -type f 2>/dev/null | head -20; echo "-- mentions profile:"; timeout 10 grep -rIil profile "$d" 2>/dev/null | head -8; done; echo "done"',
+    manifest: 'for f in $(timeout 20 find ' + ROOTS + ' -maxdepth 5 -path "*etflix*" -name appinfo.json 2>/dev/null | head -3); do echo "== $f"; head -c 2500 "$f"; echo; done; echo done'
   };
+  function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
   function inspect(test) {
-    say("Reading the TV (read only)…");
-    call(HB, { command: INSPECT[test.inspect] }, function (x) {
+    var finished = false, t0 = new Date().getTime();
+    say("Reading the TV (read only)… this can take up to 30 seconds.");
+    var dots = setInterval(function () { if (!finished) say("Reading the TV (read only)… " + Math.round((new Date().getTime() - t0) / 1000) + " s"); }, 3000);
+    var give = setTimeout(function () { if (!finished) { finished = true; clearInterval(dots); say('<span class="bad">No answer from Homebrew Channel after 45 s.</span> Its service may be busy or not reachable.'); } }, 45000);
+    call(HB, { command: "echo " + b64(INSPECT[test.inspect]) + " | base64 -d | sh" }, function (x) {
+      if (finished) return; finished = true; clearInterval(dots); clearTimeout(give);
       var out = String(x.stdoutString || x.stdout || "") + String(x.stderrString || x.stderr || "");
       if (x.returnValue === false && !out) return say('<span class="bad">Could not read:</span> ' + esc(x.errorText || JSON.stringify(x)));
       $("msg").scrollTop = 0;
-      say(esc(out.slice(0, 6000) || "(nothing found)"));
+      say(esc(out.slice(0, 6000) || "(nothing found). Raw answer: " + JSON.stringify(x).slice(0, 300)));
     });
   }
   function launch(test) {
