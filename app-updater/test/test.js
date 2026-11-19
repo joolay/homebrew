@@ -76,6 +76,13 @@ function world(installed, manifests, o) {
   const r1 = await w.u.installApp(cat[0].apps[1]); ok(w.installed.b === "9.0.0" && r1.from === null, "an app that is not on the TV can be installed from the browser");
   ok(w.u.history().pop().kind === "install", "and is saved in the history as an install");
   bad = null; try { await w.u.installApp(cat[0].apps[1]); } catch (e) { bad = e; } ok(bad && /up to date/.test(bad.message), "installing what is already current is refused");
+  // roll-back limit: at most 3 saved versions below the installed one
+  const five = { versions: { a: ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0", "1.5.0"].map(v => av("a", v)) } };
+  w = world({ a: "1.5.0" }, { a: man("a", "1.5.0") }, { archive: five }); vs = await w.u.versions("a");
+  ok(HB.limitRollback(vs, "1.5.0").map(v => v.version).join() === "1.5.0,1.4.0,1.3.0,1.2.0", "the list shows the installed version and the 3 below it");
+  ok(HB.limitRollback(vs, "1.3.0").map(v => v.version).join() === "1.5.0,1.4.0,1.3.0,1.2.0,1.1.0,1.0.0", "newer versions stay available to go forward, plus 3 older ones");
+  bad = null; try { await w.u.installVersion("a", "1.1.0"); } catch (e) { bad = e; } ok(bad && /3 versions at most/.test(bad.message) && w.installed.a === "1.5.0", "a roll-back more than 3 versions back is refused");
+  await w.u.installVersion("a", "1.2.0"); ok(w.installed.a === "1.2.0", "3 back is allowed");
   ok(fs.readFileSync(path.join(__dirname, "../hb-updater.js"), "utf8") === fs.readFileSync(path.join(__dirname, "../../app-flix/hb-updater.js"), "utf8"), "the launcher carries the same updater code");
   console.log("ALL PASSED (" + n + ")");
 })().catch(e => { console.log("FAIL", e.stack); process.exit(1); });

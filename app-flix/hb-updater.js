@@ -22,6 +22,7 @@
   var HBC = "luna://org.webosbrew.hbchannel.service/";
   var AM = "luna://com.webos.applicationManager/";
   var SELF = "io.joolay.tvupdater";
+  var ROLLBACK_MAX = 3;   // a roll-back goes back at most this many saved versions below the installed one
   var BOOT_FILE = "/var/lib/webosbrew/init.d/90-joolay-updater";
 
   // "2.0.10" > "2.0.9". Non-numeric parts count as 0. Returns -1, 0, 1.
@@ -33,6 +34,16 @@
       if (x < y) return -1;
     }
     return 0;
+  }
+
+  // Keeps the newer versions and installed one, and only the ROLLBACK_MAX saved versions just below the installed one. list is newest first.
+  function limitRollback(list, have) {
+    var out = [], older = 0;
+    for (var i = 0; i < list.length; i++) {
+      if (!have || compareVersions(list[i].version, have) >= 0) out.push(list[i]);
+      else if (older < ROLLBACK_MAX) { older++; out.push(list[i]); }
+    }
+    return out;
   }
 
   // One luna call through the TV's service bridge. o: { timeout, until(msg) -> bool (keep listening until true), onProgress(msg) }
@@ -245,6 +256,8 @@
       }).then(function (list) {
         for (var i = 0; i < list.length; i++) if (list[i].version === version) entry = list[i];
         if (!entry) throw new Error("Version " + version + " is not in the archive");
+        var allowed = limitRollback(list, from).some(function (v) { return v.version === version; });
+        if (!allowed) throw new Error("A roll-back can go back " + ROLLBACK_MAX + " versions at most");
         if (!entry.ipkHash || !entry.ipkHash.sha256) throw new Error("The archive has no sha256 for " + version);
         var down = compareVersions(version, from) < 0;
         log((down ? "Rolling back " : "Installing ") + id + " " + from + " -> " + version);
@@ -322,6 +335,6 @@
     return { check: check, run: run, catalog: catalog, appInfo: appInfo, installApp: installApp, clearHold: clearHold, history: history, restoreHistory: restoreHistory, versions: versions, installVersion: installVersion, config: config, setConfig: setConfig, setBoot: setBoot, bootState: bootState, hbcState: hbcState, log: log, logs: function () { return logs.slice(); }, exec: exec };
   }
 
-  var api = { create: create, compareVersions: compareVersions, FEED: FEED, ARCHIVE: ARCHIVE, REPOS: REPOS, SELF: SELF, HBC: HBC };
+  var api = { create: create, compareVersions: compareVersions, FEED: FEED, ROLLBACK_MAX: ROLLBACK_MAX, limitRollback: limitRollback, ARCHIVE: ARCHIVE, REPOS: REPOS, SELF: SELF, HBC: HBC };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.HBUpdater = api;
 })(typeof window !== "undefined" ? window : this);
