@@ -41,6 +41,7 @@ h1{margin:0 0 6px;font-size:44px}
     { t: "Browser: open Netflix web (browse)", s: "TV browser at netflix.com/browse: does the web version load, signed in, with the profile list?", id: "com.webos.app.browser", p: function () { return { target: "https://www.netflix.com/browse" }; } },
     { t: "Browser: Netflix manage profiles", s: "TV browser at netflix.com/ManageProfiles: shows the profiles and the address each one opens", id: "com.webos.app.browser", p: function () { return { target: "https://www.netflix.com/ManageProfiles" }; } },
     { t: "App data: find Netflix files (read only)", s: "Root listing of Netflix folders on the TV, plus files that mention 'profile'. Left/Right scroll the result.", inspect: "files" },
+    { t: "App data: Netflix data folder (read only)", s: "Lists /var/palm/jail/netflix: file names, sizes, and which files mention 'profile' (no contents)", inspect: "jail" },
     { t: "App data: Netflix app manifest (read only)", s: "Shows the Netflix appinfo.json (launch settings)", inspect: "manifest" },
     { t: "Control: YouTube video", s: "youtube.leanback.v4 with a youtube.com/tv link (known to work on webOS)", id: "youtube.leanback.v4", p: function () { return { contentTarget: "https://www.youtube.com/tv?v=" + YT }; } }
   ];
@@ -69,6 +70,7 @@ h1{margin:0 0 6px;font-size:44px}
   var FIND = 'P=$(luna-send-pub -n 1 -f luna://com.webos.applicationManager/getAppInfo \'{"id":"netflix"}\' 2>&1 | sed -n \'s/.*"folderPath" *: *"\\([^"]*\\)".*/\\1/p\' | head -1); ';
   var INSPECT = {
     files: FIND + 'echo "Netflix app folder: ${P:-not reported}"; if [ -n "$P" ]; then ls -la "$P" 2>&1 | head -30; echo "-- files mentioning profile:"; timeout 15 grep -rIil profile "$P" 2>/dev/null | head -10; fi; echo "-- possible data folders:"; ls -d /var/palm/data/*etflix* /var/palm/jail/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* /home/root/.local/share/*etflix* /var/luna/preferences/*etflix* 2>/dev/null; echo done',
+    jail: 'D=/var/palm/jail/netflix; echo "== $D"; ls -la "$D" 2>&1 | head -20; echo "-- files (size path):"; timeout 15 find "$D" -maxdepth 6 -type f -printf "%s  %p\\n" 2>/dev/null | head -60; echo "-- file names mentioning profile:"; timeout 15 grep -rIil profile "$D" 2>/dev/null | head -15; echo done',
     manifest: FIND + 'echo "Netflix app folder: ${P:-not reported}"; [ -n "$P" ] && head -c 2500 "$P/appinfo.json"; echo; echo done'
   };
   function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
