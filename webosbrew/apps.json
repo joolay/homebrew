@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 4,
+    "count": 5,
     "maxPage": 1,
-    "itemsTotal": 4
+    "itemsTotal": 5
   },
   "packages": [
     {
@@ -41,6 +41,15 @@
       "pool": "main",
       "shortDescription": "Live CCTV wall on the TV",
       "description": "Opens your JoolzCCTV server (home address first, then public) and shows the live camera wall from all your Hikvision, Dahua and RTSP recorders, with remote-control layouts, saved views and full screen. Sign in with your JoolzApp account."
+    },
+    {
+      "id": "io.joolay.tvlinktest",
+      "title": "Link Test",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-linktest/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-linktest.json",
+      "pool": "main",
+      "shortDescription": "Test: can a link open or play a video inside the Netflix app?",
+      "description": "A small test app, separate from JoolzTV. Launches Netflix (and YouTube as a control) with different link styles so we can see which one opens or plays a title directly."
     }
   ]
 }
