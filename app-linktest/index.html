@@ -67,18 +67,18 @@ h1{margin:0 0 6px;font-size:44px}
   // Direct call first. If webOS refuses it, the same call is made as root through Homebrew Channel's service.
   // Short, limited searches only: a find over the whole TV can run for minutes. Scripts go through base64 so quotes cannot break them.
   // No searching the whole disk (it timed out): ask webOS where Netflix lives, then look only there.
-  var FIND = 'P=$(luna-send-pub -n 1 -f luna://com.webos.applicationManager/getAppInfo \'{"id":"netflix"}\' 2>&1 | sed -n \'s/.*"folderPath" *: *"\\([^"]*\\)".*/\\1/p\' | head -1); ';
+  var FIND = 'P=$(timeout 8 luna-send-pub -n 1 -f luna://com.webos.applicationManager/getAppInfo \'{"id":"netflix"}\' 2>&1 | sed -n \'s/.*"folderPath" *: *"\\([^"]*\\)".*/\\1/p\' | head -1); ';
   var INSPECT = {
     files: FIND + 'echo "Netflix app folder: ${P:-not reported}"; if [ -n "$P" ]; then ls -la "$P" 2>&1 | head -30; echo "-- files mentioning profile:"; timeout 15 grep -rIil profile "$P" 2>/dev/null | head -10; fi; echo "-- possible data folders:"; ls -d /var/palm/data/*etflix* /var/palm/jail/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* /home/root/.local/share/*etflix* /var/luna/preferences/*etflix* 2>/dev/null; echo done',
-    jail: 'D=/var/palm/jail/netflix; for s in var usr media mnt etc tmp; do echo "== $s"; timeout 8 find "$D/$s" -xdev -maxdepth 4 -printf "%y %s %p\\n" 2>/dev/null | sed "s#$D##" | head -40; done; echo "-- small files mentioning profile:"; timeout 12 sh -c "find $D/var $D/usr $D/media $D/mnt $D/etc -xdev -type f -size -300k 2>/dev/null | head -400 | xargs grep -Iil profile 2>/dev/null | head -15"; echo done',
+    jail: 'D=/var/palm/jail/netflix; for s in var usr media mnt etc tmp; do echo "== $s"; timeout 3 find "$D/$s" -xdev -maxdepth 3 -printf "%y %s %p\\n" 2>/dev/null | sed "s#$D##" | head -40; done; echo "-- small files mentioning profile:"; timeout 8 sh -c "find $D/var $D/usr $D/media $D/mnt $D/etc -xdev -type f -size -300k 2>/dev/null | head -400 | xargs grep -Iil profile 2>/dev/null | head -15"; echo done',
     manifest: FIND + 'echo "Netflix app folder: ${P:-not reported}"; [ -n "$P" ] && head -c 2500 "$P/appinfo.json"; echo; echo done'
   };
   function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
   function inspect(test) {
     var finished = false, t0 = new Date().getTime();
-    say("Reading the TV (read only)… this can take up to 30 seconds.");
+    say("Reading the TV (read only)… this can take up to a minute.");
     var dots = setInterval(function () { if (!finished) say("Reading the TV (read only)… " + Math.round((new Date().getTime() - t0) / 1000) + " s"); }, 3000);
-    var give = setTimeout(function () { if (!finished) { finished = true; clearInterval(dots); say('<span class="bad">No answer from Homebrew Channel after 45 s.</span> Its service may be busy or not reachable.'); } }, 45000);
+    var give = setTimeout(function () { if (!finished) { finished = true; clearInterval(dots); say('<span class="bad">No answer from Homebrew Channel after 90 s.</span> Its service may be busy or not reachable.'); } }, 90000);
     call(HB, { command: "echo " + b64(INSPECT[test.inspect]) + " | base64 -d | sh" }, function (x) {
       if (finished) return; finished = true; clearInterval(dots); clearTimeout(give);
       var out = String(x.stdoutString || x.stdout || "") + String(x.stderrString || x.stderr || "");
