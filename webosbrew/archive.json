@@ -9,6 +9,15 @@
           "sha256": "243bfe6260ff3940860596d5defe2762bfb534b0e77ed1e7e0c1400c098d77b2"
         },
         "ipkSize": 23998
+      },
+      {
+        "version": "1.0.1",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvcctv_1.0.1_all.ipk",
+        "ipkHash": {
+          "sha256": "70e6afac9b247071c987c9222f77d73bf53e0fda1a89b247b2f70f4f3570a87e"
+        },
+        "ipkSize": 24006
       }
     ],
     "io.joolay.tvtailscale": [
@@ -28,6 +37,15 @@
           "sha256": "944b3a3553bc69ca6d4d7b8e930126b32eef08e7b6929f5b795ded45aae6b152"
         },
         "ipkSize": 29180
+      },
+      {
+        "version": "1.0.2",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvtailscale_1.0.2_all.ipk",
+        "ipkHash": {
+          "sha256": "2b9491025b208e9e146df8f54f06b8af3018b34fb0afe203bcb726af420b7dab"
+        },
+        "ipkSize": 29208
       }
     ],
     "io.joolay.tvupdater": [
@@ -80,6 +98,15 @@
           "sha256": "8d71ceea13c21cc49ec33209b8ac7af457ee1d815775454cd2a63a61b55faae8"
         },
         "ipkSize": 38378
+      },
+      {
+        "version": "2.2.2",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvupdater_2.2.2_all.ipk",
+        "ipkHash": {
+          "sha256": "d075f0d41647732044afbab64845636c95b92e9b401ba6ae43dc62432864e3ef"
+        },
+        "ipkSize": 38388
       }
     ],
     "io.stremio.flix.tv": [
@@ -148,6 +175,15 @@
           "sha256": "6fe79e91109efdb44fa639638d29afd5b7a116360512a8e8ccf845f181843a98"
         },
         "ipkSize": 32768
+      },
+      {
+        "version": "2.1.7",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_2.1.7_all.ipk",
+        "ipkHash": {
+          "sha256": "002efe2a1cadf0f9efaa60e37c9a1df492fb5499c5739b041ad0390528d5fa40"
+        },
+        "ipkSize": 32774
       }
     ],
     "io.joolay.tvlinktest": [
@@ -175,6 +211,15 @@
         "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvlinktest_0.2.0_all.ipk",
         "ipkHash": {
           "sha256": "d3f099f0e08f34cb52f6d15e56eb4071045585ae0411d6826c3f8ae2c232c3d2"
+        },
+        "ipkSize": 20714
+      },
+      {
+        "version": "0.2.1",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvlinktest_0.2.1_all.ipk",
+        "ipkHash": {
+          "sha256": "a414e8ba68cb28f712ce9b51298b5772868293175014808ccd198a98feb0a762"
         },
         "ipkSize": 20714
       }
