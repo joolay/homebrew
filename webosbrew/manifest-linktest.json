@@ -1,14 +1,14 @@
 {
   "id": "io.joolay.tvlinktest",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "web",
   "title": "Link Test",
   "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-linktest/largeIcon.png",
   "sourceUrl": "https://github.com/joolay/homebrew",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvlinktest_0.1.0_all.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvlinktest_0.1.1_all.ipk",
   "ipkHash": {
-    "sha256": "b4a20b77afb877f425d057d57ecc4df65610f72c418a97e33190f7ec2fa10166"
+    "sha256": "1cf2e391f67e4d4d696b6440c3ee11c5e8b35e2c619cdb653df0f32206a4a2fc"
   },
-  "ipkSize": 19376
+  "ipkSize": 19606
 }
