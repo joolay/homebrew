@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Link Test</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0d12;color:#e8ecf4;font:28px/1.3 sans-serif}
+#w{padding:40px 70px}
+h1{margin:0 0 6px;font-size:44px}
+.sub{color:#8d97ab;font-size:24px;margin-bottom:18px}
+#idbox{font-size:30px;margin:10px 0 18px}
+#idbox b{color:#7cc4ff;letter-spacing:2px}
+.row{padding:14px 22px;margin:8px 0;border-radius:14px;background:#171b26;border:3px solid transparent}
+.row.f{border-color:#7cc4ff;background:#1f2636}
+.row small{display:block;color:#8d97ab;font-size:21px}
+#msg{margin-top:18px;padding:16px 22px;border-radius:14px;background:#10141d;min-height:90px;font-size:24px;white-space:pre-wrap;word-break:break-all}
+.ok{color:#58d68d}.bad{color:#ff7b72}
+</style></head><body><div id="w">
+<h1>Link Test</h1>
+<div class="sub">Does a link from one app open or play a video inside another app? Nothing here touches JoolzTV.</div>
+<div id="idbox">Title / video ID: <b id="vid"></b> &nbsp; <span style="color:#8d97ab;font-size:22px">type digits on the remote, Yellow deletes</span></div>
+<div id="apps" class="sub"></div>
+<div id="list"></div>
+<div id="msg">Choose a test and press OK.</div>
+</div>
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var vid = "80057281";                     // a Netflix title id; type another with the number keys
+  var YT = "dQw4w9WgXcQ";
+  var HB = "luna://org.webosbrew.hbchannel.service/exec";
+  var AM = "luna://com.webos.applicationManager/";
+  var cur = 0;
+
+  var tests = [
+    { t: "Netflix: just open the app", s: "launch id netflix, no parameters", id: "netflix", p: function () { return {}; } },
+    { t: "Netflix: title page by link", s: "contentTarget = https://www.netflix.com/title/ID", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/title/" + vid }; } },
+    { t: "Netflix: play by link", s: "contentTarget = https://www.netflix.com/watch/ID", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/watch/" + vid }; } },
+    { t: "Netflix: play, DIAL style", s: "contentTarget = source_type=4&m=https://www.netflix.com/watch/ID", id: "netflix", p: function () { return { contentTarget: "source_type=4&m=https://www.netflix.com/watch/" + vid }; } },
+    { t: "Netflix: play, netflix:// link", s: "contentTarget = netflix://title/ID", id: "netflix", p: function () { return { contentTarget: "netflix://title/" + vid }; } },
+    { t: "Netflix: play, 'target' parameter", s: "target = https://www.netflix.com/watch/ID", id: "netflix", p: function () { return { target: "https://www.netflix.com/watch/" + vid }; } },
+    { t: "Control: YouTube video", s: "youtube.leanback.v4 with a youtube.com/tv link (known to work on webOS)", id: "youtube.leanback.v4", p: function () { return { contentTarget: "https://www.youtube.com/tv?v=" + YT }; } }
+  ];
+
+  function say(h) { $("msg").innerHTML = h; }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function paint() {
+    $("vid").textContent = vid || "(empty)";
+    var h = "";
+    for (var i = 0; i < tests.length; i++) h += '<div class="row' + (i === cur ? " f" : "") + '" id="r' + i + '">' + esc(tests[i].t) + "<small>" + esc(tests[i].s) + "</small></div>";
+    $("list").innerHTML = h;
+  }
+
+  function call(uri, params, cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = { returnValue: false, errorText: "Bad answer: " + m }; } cb(j); };
+      b.call(uri, JSON.stringify(params || {}));
+    } catch (e) { cb({ returnValue: false, errorText: "No webOS service bridge (only works on the TV)" }); }
+  }
+  function sq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+
+  // Direct call first. If webOS refuses it, the same call is made as root through Homebrew Channel's service.
+  function launch(test) {
+    var params = test.p(), body = { id: test.id, params: params };
+    say("Launching " + esc(test.id) + "…\n" + esc(JSON.stringify(params)));
+    call(AM + "launch", body, function (r) {
+      if (r.returnValue !== false) return say('<span class="ok">Direct call accepted.</span>\n' + esc(JSON.stringify(r)) + "\nIf " + esc(test.id) + " opened on the right video, this link works.");
+      var why = r.errorText || JSON.stringify(r);
+      say("Direct call refused: " + esc(why) + "\nTrying as root…");
+      call(HB, { command: "luna-send-pub -n 1 -f " + AM + "launch " + sq(JSON.stringify(body)) }, function (x) {
+        var out = String(x.stdoutString || x.stdout || "") + String(x.stderrString || x.stderr || "");
+        var good = x.returnValue !== false && /"returnValue"\s*:\s*true/.test(out);
+        say((good ? '<span class="ok">Root call accepted.</span>' : '<span class="bad">Root call failed.</span>') + "\nDirect: " + esc(why) + "\nRoot: " + esc(out.replace(/\s+/g, " ").slice(0, 300) || JSON.stringify(x)) + (good ? "\nIf " + esc(test.id) + " opened on the right video, this link works." : ""));
+      });
+    });
+  }
+
+  function listApps() {
+    call(AM + "listApps", {}, function (r) {
+      var a = r.apps || [], found = [], i;
+      for (i = 0; i < a.length; i++) if (/netflix|youtube|prime|disney|hbo|apple/i.test(a[i].id)) found.push(a[i].id + (a[i].version ? " " + a[i].version : ""));
+      $("apps").textContent = r.returnValue === false ? "Could not read the app list (" + (r.errorText || "no answer") + ")." : (found.length ? "Streaming apps on this TV: " + found.join(", ") : "No streaming apps found in the list.");
+    });
+  }
+
+  function move(d) { cur = (cur + d + tests.length) % tests.length; paint(); }
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode;
+    if (k === 38) { move(-1); e.preventDefault(); }
+    else if (k === 40) { move(1); e.preventDefault(); }
+    else if (k === 13) { launch(tests[cur]); e.preventDefault(); }
+    else if (k >= 48 && k <= 57) { if (vid.length < 12) vid += String(k - 48); paint(); }
+    else if (k === 405) { vid = vid.slice(0, -1); paint(); }              // yellow
+    else if (k === 461 || k === 27 || k === 8) { try { window.close(); } catch (x) {} }
+  });
+  $("list").addEventListener("click", function (e) {      // Magic Remote pointer
+    var n = e.target; while (n && n !== $("list") && !/^r\d+$/.test(n.id || "")) n = n.parentNode;
+    if (n && n.id) { cur = +n.id.slice(1); paint(); launch(tests[cur]); }
+  });
+  paint(); listApps();
+})();
+</script></body></html>

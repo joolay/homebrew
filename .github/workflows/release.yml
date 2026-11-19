@@ -8,10 +8,10 @@ on:
       app:
         description: 'Which app to release (version comes from its appinfo.json)'
         type: choice
-        options: [both, launcher, updater, tailscale, cctv]   # both = every app; an app whose version is already built is left as it is
+        options: [both, launcher, updater, tailscale, cctv, linktest]   # both = every app; an app whose version is already built is left as it is
         default: both
   push:
-    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*']
+    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*', 'linktest-v*']
 permissions:
   contents: write
 concurrency: release
@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           RAW="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main"
           WHICH=both
-          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
+          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; linktest-v*) WHICH=linktest;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
           mkdir -p dist
           publish() { # id title dir-or-dirs manifest-file rootRequired iconpath
             ID=$1; TITLE=$2; MAN=$3; ROOT=$4; ICON=$5; shift 5
@@ -71,6 +71,10 @@ jobs:
           if [ "$WHICH" = cctv ] || [ "$WHICH" = both ]; then
             publish io.joolay.tvcctv "JoolzCCTV" manifest-cctv.json false app-cctv/largeIcon.png app-cctv
             jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvcctv") then . else .packages += [{id:"io.joolay.tvcctv",title:"JoolzCCTV",iconUri:($raw+"/app-cctv/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-cctv.json"),pool:"main",shortDescription:"Live CCTV wall on the TV",description:"Opens your JoolzCCTV server (home address first, then public) and shows the live camera wall from all your Hikvision, Dahua and RTSP recorders, with remote-control layouts, saved views and full screen. Sign in with your JoolzApp account."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
+          fi
+          if [ "$WHICH" = linktest ] || [ "$WHICH" = both ]; then
+            publish io.joolay.tvlinktest "Link Test" manifest-linktest.json false app-linktest/largeIcon.png app-linktest
+            jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvlinktest") then . else .packages += [{id:"io.joolay.tvlinktest",title:"Link Test",iconUri:($raw+"/app-linktest/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-linktest.json"),pool:"main",shortDescription:"Test: can a link open or play a video inside the Netflix app?",description:"A small test app, separate from JoolzTV. Launches Netflix (and YouTube as a control) with different link styles so we can see which one opens or plays a title directly."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
           fi
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist webosbrew
