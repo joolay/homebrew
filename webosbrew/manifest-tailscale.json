@@ -8,7 +8,7 @@
   "rootRequired": true,
   "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvtailscale_1.0.0_all.ipk",
   "ipkHash": {
-    "sha256": "b26c6b3109c40b90833676e4d4e4c1f2b758a27ab8b3f54622d902fe0a18bedc"
+    "sha256": "2f4cabb090d2feb046aad6a331799786e26b081f23cc5ba66f123ad6c411b3f0"
   },
-  "ipkSize": 28192
+  "ipkSize": 28190
 }
