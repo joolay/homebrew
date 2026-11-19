@@ -13,8 +13,10 @@
   // Repos the TV Updater reads, in this order (an app listed in two repos belongs to the first). `all` repos also list apps that are not on the TV;
   // the others only show apps that are installed, so a big public repo does not flood the screen. Change them with setConfig({ repos: [...] }).
   // The webOS Homebrew address is not verified yet: if it is wrong that repo shows "Could not read this repo" and everything else still works.
+  var ARCHIVE = "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/archive.json";   // every released IPK of the JoolzTV repo, for roll-back
+  var HIST_FILE = "/var/lib/webosbrew/joolay-updater-history.json";                               // a copy of the update history that survives reinstalling this app
   var REPOS = [
-    { id: "joolay", name: "JoolzTV", url: FEED, all: true },
+    { id: "joolay", name: "JoolzTV", url: FEED, all: true, archive: ARCHIVE },
     { id: "webosbrew", name: "webOS Homebrew", url: "https://repo.webosbrew.org/api/apps.json" }
   ];
   var HBC = "luna://org.webosbrew.hbchannel.service/";
@@ -102,13 +104,13 @@
     function config() {
       var c = store.get("jtv.updcfg") || {};
       var repos = (Array.isArray(c.repos) ? c.repos : REPOS).filter(function (r) { return r && typeof r.url === "string" && /^https:\/\//.test(r.url); })
-        .map(function (r, i) { return { id: String(r.id || "r" + i), name: String(r.name || r.url.replace(/^https:\/\/([^\/]+).*$/, "$1")), url: r.url, all: !!r.all }; });
+        .map(function (r, i) { return { id: String(r.id || "r" + i), name: String(r.name || r.url.replace(/^https:\/\/([^\/]+).*$/, "$1")), url: r.url, all: !!r.all, archive: typeof r.archive === "string" && /^https:\/\//.test(r.archive) ? r.archive : null }; });
       if (!Array.isArray(c.repos) && typeof c.feedUrl === "string" && /^https:\/\//.test(c.feedUrl)) repos[0].url = c.feedUrl;   // older setting: the first repo's address
-      return { repos: repos, ignore: Array.isArray(c.ignore) ? c.ignore : [] };
+      return { repos: repos, ignore: Array.isArray(c.ignore) ? c.ignore : [], hold: c.hold && typeof c.hold === "object" ? c.hold : {} };
     }
-    function setConfig(patch) {
-      var c = config(); for (var k in patch) c[k] = patch[k];
-      store.set("jtv.updcfg", c); return c;
+    function setConfig(patch) {                                  // changes only what is passed, so the default repos keep following new releases
+      var c = store.get("jtv.updcfg") || {}; for (var k in patch) c[k] = patch[k];
+      store.set("jtv.updcfg", c); return config();
     }
 
     function parseApps(j) { var o = {}; (j.apps || []).forEach(function (a) { if (a && a.id) o[a.id] = a.version; }); return o; }
@@ -145,7 +147,7 @@
           if (!have) out.state = "not-installed";
           else if (cfg.ignore.indexOf(it.id) >= 0) out.state = "ignored";
           else if (it.manifest.rootRequired && !o.root) out.state = "needs-root";
-          else if (compareVersions(it.manifest.version, have) > 0) out.state = "update";
+          else if (compareVersions(it.manifest.version, have) > 0) out.state = cfg.hold[it.id] && compareVersions(it.manifest.version, cfg.hold[it.id]) <= 0 ? "held" : "update";   // rolled back: no update until something newer than what was undone appears
           else out.state = "current";
           out.manifest = it.manifest; out.manifestUrl = it.manifestUrl;
           return out;
@@ -190,12 +192,117 @@
             var pre = it.id === SELF ? launchLater(SELF, 30) : Promise.resolve();
             return pre.then(function () { return installOne(it); }).then(function () { return listInstalled(); }).then(function (now) {
               if (compareVersions(now[it.id], it.available) < 0) throw new Error("Installer finished but the TV still reports " + (now[it.id] || "nothing"));
-              it.state = "updated"; it.installed = now[it.id]; log("Updated " + it.title + " to " + it.installed);
-              if (o.relaunch === it.id) return launchLater(it.id, 2);
-            }).catch(function (e) { it.state = "failed"; it.error = e.message; log("Failed " + it.title + ": " + e.message); });
+              it.state = "updated"; log("Updated " + it.title + " to " + now[it.id]);
+              var h1 = addHistory({ id: it.id, title: it.title, repo: it.repo, from: it.installed, to: now[it.id], ok: true, kind: "update" });
+              it.installed = now[it.id];
+              if (o.relaunch === it.id) return h1.then(function () { return launchLater(it.id, 2); });
+              return h1;
+            }).catch(function (e) { it.state = "failed"; it.error = e.message; log("Failed " + it.title + ": " + e.message); return addHistory({ id: it.id, title: it.title, repo: it.repo, from: it.installed, to: it.available, ok: false, error: e.message, kind: "update" }); });
           });
         });
         return chain.then(function () { return strip(items); });
+      });
+    }
+
+    function clearHold(id) { var c = store.get("jtv.updcfg") || {}; if (c.hold && c.hold[id]) { delete c.hold[id]; store.set("jtv.updcfg", c); } }
+
+    // ---- update history (newest last, at most 60), kept in the app's storage and copied to a file the app's reinstall does not touch
+    function history() { var h = store.get("jtv.updhist"); return Array.isArray(h) ? h : []; }
+    function saveHistory(h) {
+      store.set("jtv.updhist", h);
+      return exec("mkdir -p /var/lib/webosbrew && echo " + b64(JSON.stringify(h)) + " | base64 -d > " + HIST_FILE, 20000).catch(function () {});
+    }
+    function addHistory(e) { var h = history(); e.t = Date.now(); h.push(e); while (h.length > 60) h.shift(); return saveHistory(h); }
+    function restoreHistory() {            // after a reinstall the app's own storage may be empty: read the file copy
+      if (history().length) return Promise.resolve(history());
+      return exec("cat " + HIST_FILE + " 2>/dev/null").then(function (t) { var h; try { h = JSON.parse(t); } catch (e) { h = null; } if (Array.isArray(h)) store.set("jtv.updhist", h); return history(); }, function () { return history(); });
+    }
+
+    // ---- roll-back: older IPKs come from a repo's archive (webosbrew/archive.json: { versions: { id: [ { version, ipkUrl, ipkHash: { sha256 }, ipkSize, date } ] } })
+    function versions(id) {
+      var repos = config().repos.filter(function (r) { return r.archive; });
+      return Promise.all(repos.map(function (r) {
+        return getJson(r.archive).then(function (a) {
+          return ((a.versions && a.versions[id]) || []).map(function (v) { return { version: v.version, date: v.date || null, ipkUrl: absolute(r.archive, v.ipkUrl || ""), ipkHash: v.ipkHash, repo: r.name }; });
+        }, function () { return []; });
+      })).then(function (lists) {
+        var seen = {}, out = [];
+        lists.forEach(function (l) { l.forEach(function (v) { if (!seen[v.version]) { seen[v.version] = true; out.push(v); } }); });
+        out.sort(function (a, b) { return compareVersions(b.version, a.version); });
+        return out;
+      });
+    }
+    // Install one archived version (older = roll back, newer = install). Holds automatic updates at the version that was undone.
+    function installVersion(id, version) {
+      var title = id, from = null, entry = null;
+      return hbcState().then(function (h) {
+        if (!h.ok) throw new Error("Homebrew Channel's service did not answer (" + h.error + ")");
+        return listInstalled();
+      }).then(function (inst) {
+        from = inst[id] || null;
+        if (!from) throw new Error("That app is not installed");
+        return versions(id);
+      }).then(function (list) {
+        for (var i = 0; i < list.length; i++) if (list[i].version === version) entry = list[i];
+        if (!entry) throw new Error("Version " + version + " is not in the archive");
+        if (!entry.ipkHash || !entry.ipkHash.sha256) throw new Error("The archive has no sha256 for " + version);
+        var down = compareVersions(version, from) < 0;
+        log((down ? "Rolling back " : "Installing ") + id + " " + from + " -> " + version);
+        var pre = id === SELF ? launchLater(SELF, 30) : Promise.resolve();
+        return pre.then(function () { return installOne({ title: id, manifestUrl: "", manifest: { ipkUrl: entry.ipkUrl, ipkHash: entry.ipkHash } }); })
+          .then(function () { return listInstalled(); })
+          .then(function (now) {
+            if (compareVersions(now[id], version) !== 0) throw new Error("Installer finished but the TV still reports " + (now[id] || "nothing"));
+            var c = store.get("jtv.updcfg") || {}, hold = c.hold && typeof c.hold === "object" ? c.hold : {};
+            if (down) hold[id] = from; else delete hold[id];
+            setConfig({ hold: hold });
+            log("Now on " + id + " " + version);
+            return addHistory({ id: id, title: id, repo: entry.repo, from: from, to: version, ok: true, kind: down ? "rollback" : "update" }).then(function () { return { id: id, from: from, to: version, rolledBack: down }; });
+          });
+      }).catch(function (e) {
+        return addHistory({ id: id, title: id, from: from, to: version, ok: false, error: e.message, kind: "rollback" }).then(function () { throw e; });
+      });
+    }
+
+    // ---- app browser: every app each repo lists (not only the installed ones), and installing or updating one app you pick
+    function catalog() {
+      var cfg = config();
+      return Promise.all([listInstalled().catch(function () { return {}; }), Promise.all(cfg.repos.map(function (r) {
+        return getJson(r.url).then(function (feed) { return { repo: r, packages: feed.packages || [] }; }, function (e) { return { repo: r, error: e.message }; });
+      }))]).then(function (res) {
+        var inst = res[0], seen = {};
+        return res[1].map(function (x) {
+          if (x.error) return { id: x.repo.id, name: x.repo.name, error: x.error, apps: [] };
+          var apps = x.packages.filter(function (p) { return p && p.id && p.manifestUrl && !seen[p.id] && (seen[p.id] = true); }).map(function (p) {
+            return { id: p.id, title: p.title || p.id, desc: p.shortDescription || "", long: p.description || "", manifestUrl: absolute(x.repo.url, p.manifestUrl), installed: inst[p.id] || null, repo: x.repo.name };
+          });
+          apps.sort(function (a, b) { return a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0; });
+          return { id: x.repo.id, name: x.repo.name, apps: apps };
+        });
+      });
+    }
+    function appInfo(app) {
+      return getJson(app.manifestUrl).then(function (m) { return { version: m.version || null, rootRequired: !!m.rootRequired, size: m.ipkSize || null, title: m.title || app.title }; });
+    }
+    // Install (not on the TV yet) or update (older) one app from a repo. Same checks as an automatic update: sha256 from the manifest, root, verified afterwards.
+    function installApp(app) {
+      var from = null, m = null;
+      return hbcState().then(function (h) {
+        if (!h.ok) throw new Error("Homebrew Channel's service did not answer (" + h.error + ")");
+        return Promise.all([listInstalled(), getJson(app.manifestUrl)]).then(function (r) {
+          m = r[1]; from = r[0][app.id] || null;
+          if (m.rootRequired && !h.root) throw new Error("This app needs a rooted TV");
+          if (from && compareVersions(m.version, from) <= 0) throw new Error("Already up to date");
+          if (!m.ipkUrl || !m.ipkHash || !m.ipkHash.sha256) throw new Error("Manifest has no ipkUrl or sha256");
+          log((from ? "Updating " : "Installing ") + app.title + (from ? " " + from + " -> " : " ") + m.version);
+          var pre = app.id === SELF ? launchLater(SELF, 30) : Promise.resolve();
+          return pre.then(function () { return installOne({ title: app.title, manifestUrl: app.manifestUrl, manifest: m }); });
+        });
+      }).then(function () { return listInstalled(); }).then(function (now) {
+        if (compareVersions(now[app.id], m.version) < 0) throw new Error("Installer finished but the TV still reports " + (now[app.id] || "nothing"));
+        return addHistory({ id: app.id, title: app.title, repo: app.repo, from: from, to: now[app.id], ok: true, kind: from ? "update" : "install" }).then(function () { return { id: app.id, from: from, to: now[app.id] }; });
+      }).catch(function (e) {
+        return addHistory({ id: app.id, title: app.title, repo: app.repo, from: from, to: m && m.version || null, ok: false, error: e.message, kind: from ? "update" : "install" }).then(function () { throw e; });
       });
     }
 
@@ -212,9 +319,9 @@
     }
     function bootState() { return exec("test -f " + BOOT_FILE + " && echo yes || echo no").then(function (s) { return String(s).trim() === "yes"; }, function () { return false; }); }
 
-    return { check: check, run: run, config: config, setConfig: setConfig, setBoot: setBoot, bootState: bootState, hbcState: hbcState, log: log, logs: function () { return logs.slice(); }, exec: exec };
+    return { check: check, run: run, catalog: catalog, appInfo: appInfo, installApp: installApp, clearHold: clearHold, history: history, restoreHistory: restoreHistory, versions: versions, installVersion: installVersion, config: config, setConfig: setConfig, setBoot: setBoot, bootState: bootState, hbcState: hbcState, log: log, logs: function () { return logs.slice(); }, exec: exec };
   }
 
-  var api = { create: create, compareVersions: compareVersions, FEED: FEED, REPOS: REPOS, SELF: SELF, HBC: HBC };
+  var api = { create: create, compareVersions: compareVersions, FEED: FEED, ARCHIVE: ARCHIVE, REPOS: REPOS, SELF: SELF, HBC: HBC };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.HBUpdater = api;
 })(typeof window !== "undefined" ? window : this);

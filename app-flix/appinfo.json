@@ -1,1 +1,1 @@
-{"id": "io.stremio.flix.tv", "version": "2.1.4", "vendor": "community", "type": "web", "main": "index.html", "title": "JoolzTV", "icon": "icon.png", "largeIcon": "largeIcon.png", "bgColor": "#0b0d12", "resolution": "1920x1080", "disableBackHistoryAPI": true, "inspectable": true}
+{"id": "io.stremio.flix.tv", "version": "2.1.5", "vendor": "community", "type": "web", "main": "index.html", "title": "JoolzTV", "icon": "icon.png", "largeIcon": "largeIcon.png", "bgColor": "#0b0d12", "resolution": "1920x1080", "disableBackHistoryAPI": true, "inspectable": true}

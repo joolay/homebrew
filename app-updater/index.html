@@ -12,17 +12,20 @@ button{font:inherit;color:#fff;background:rgba(255,255,255,.12);border:2px solid
 button:focus{border-color:#4d9bff;background:rgba(77,155,255,.35)}
 button[disabled]{opacity:.45}
 .grp{margin:26px 0 10px;display:flex;align-items:baseline}.grp .gn{font-size:34px;font-weight:600;flex:1}.grp .gm{color:#9aa3b2;font-size:24px}.grp .gu{color:#6ee7a0;margin-left:20px;font-size:24px}
-.row{display:flex;align-items:center;padding:16px 24px;margin-bottom:10px;border-radius:16px;background:rgba(255,255,255,.07)}
+.row:focus{border-color:#4d9bff;background:rgba(77,155,255,.28)}
+.row.pick{cursor:pointer}
+.row{border:2px solid transparent;outline:0;display:flex;align-items:center;padding:16px 24px;margin-bottom:10px;border-radius:16px;background:rgba(255,255,255,.07)}
 .row .t{flex:1}.row .v{width:380px;color:#9aa3b2}.row .s{width:260px;text-align:right}
-.update,.updated{color:#6ee7a0}.failed,.error{color:#ff7b7b}.needs-root,.ignored,.not-installed{color:#9aa3b2}
+.held{color:#ffd166}.rolledback{color:#ffd166}.update,.updated,.installed{color:#6ee7a0}.rollback{color:#4d9bff}.failed,.error{color:#ff7b7b}.needs-root,.ignored,.not-installed{color:#9aa3b2}
 #msg{margin:18px 0;color:#9aa3b2;min-height:40px}
 #log{font:20px/1.4 monospace;color:#7d8696;white-space:pre-wrap;margin-top:24px;max-height:200px;overflow:hidden}
 </style></head><body>
 <h1>TV Updater</h1>
-<div class="sub">Keeps your Homebrew apps up to date, grouped by the repo they come from. Only apps already on this TV are updated.</div>
-<div class="bar">
-  <button id="check">Check now</button><button id="run">Update all</button><button id="auto">Auto-update: …</button>
+<div class="sub">Keeps your Homebrew apps up to date, grouped by the repo they come from. Only apps already on this TV are updated. Press Down to pick one app and OK to update just that one, Right to see its older versions. Browse lists everything in each repo.</div>
+<div class="bar" id="bar">
+  <button id="check">Check now</button><button id="run">Update all</button><button id="auto">Auto-update: …</button><button id="hist">History</button><button id="browse">Browse</button>
 </div>
+<div class="bar" id="subbar" style="display:none"></div>
 <div id="msg">Loading…</div>
 <div id="list"></div>
 <div id="log"></div>
@@ -30,8 +33,8 @@ button[disabled]{opacity:.45}
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var busy = false, autoOn = false, items = [];
-  var LABEL = { update: "Update available", current: "Up to date", updated: "Updated", failed: "Failed", error: "Feed error", "not-installed": "Not installed", ignored: "Ignored", "needs-root": "Needs root" };
+  var busy = false, autoOn = false, items = [], mode = "main", pending = null;
+  var LABEL = { held: "Held after roll back", update: "Update: press OK", current: "Up to date", updated: "Updated", failed: "Failed", error: "Feed error", "not-installed": "Not installed", ignored: "Ignored", "needs-root": "Needs root" };
   var U = HBUpdater.create({ onLog: function () { showLog(); }, onProgress: function (it) { $("msg").textContent = "Installing " + it.title + "…"; } });
   var launch = {}; try { launch = JSON.parse((window.PalmSystem && window.PalmSystem.launchParams) || "{}") || {}; } catch (e) {}
 
@@ -40,7 +43,7 @@ button[disabled]{opacity:.45}
   function row(x) {
     var h = "";
     {
-      h += '<div class="row"><div class="t">' + esc(x.title) + '</div><div class="v">' + esc(x.installed || "–") + (x.available && x.available !== x.installed ? " → " + esc(x.available) : "") +
+      h += '<div class="row' + (x.state === "update" || x.state === "held" ? " pick" : "") + '" tabindex="0" data-id="' + esc(x.id) + '" data-state="' + esc(x.state) + '"><div class="t">' + esc(x.title) + '</div><div class="v">' + esc(x.installed || "–") + (x.available && x.available !== x.installed ? " → " + esc(x.available) : "") +
         '</div><div class="s ' + esc(x.state) + '">' + esc(LABEL[x.state] || x.state) + "</div></div>";
       if (x.error) h += '<div class="failed" style="margin:-4px 0 10px 24px;font-size:22px">' + esc(x.error) + "</div>";
     }
@@ -72,18 +75,153 @@ button[disabled]{opacity:.45}
     if (busy) return Promise.resolve(); setBusy(true, "Updating… this can take a minute. Don't turn the TV off.");
     return U.run({}).then(function (list) { items = list; render(list); var f = 0; for (var i = 0; i < list.length; i++) if (list[i].state === "failed") f++; setBusy(false, f ? f + " failed. See below." : "Done."); showLog(); }, fail);
   }
+  // OK on an app that has an update updates just that app, then the list is refreshed.
+  function runOne(id) {
+    if (busy) return; var it = null, i;
+    for (i = 0; i < items.length; i++) if (items[i].id === id) it = items[i];
+    if (!it || (it.state !== "update" && it.state !== "held")) return;
+    if (it.state === "held") { U.clearHold(id); it.state = "update"; }
+    setBusy(true, "Updating " + it.title + "… don't turn the TV off.");
+    U.run({ only: [id], relaunch: null }).then(function (res) {
+      var r = res && res[0], failed = r && r.state === "failed";
+      return U.check().then(function (list) { items = list; render(list); setBusy(false, failed ? it.title + " failed: " + (r.error || "") : it.title + " updated."); showLog(); focusRow(id); });
+    }, fail);
+  }
+  function focusRow(id) { var rows = document.querySelectorAll("#list .row"); for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute("data-id") === id) { rows[i].focus(); return; } }
+  // ---- history and roll-back (both use the list area; Back returns to the main list)
+  function show(m, extra) {
+    mode = m; pending = null; $("bar").style.display = m === "main" ? "" : "none";
+    var sb = $("subbar"); sb.style.display = m === "main" ? "none" : ""; sb.innerHTML = "";
+    if (m === "main") return;
+    [{ id: "back", label: "\u2190 Back", fn: back }].concat(extra || []).forEach(function (x) { var b = document.createElement("button"); b.id = "sb-" + x.id; b.textContent = x.label; b.onclick = x.fn; sb.appendChild(b); });
+  }
+  // Back goes up one level: app -> repo -> repos -> main (history and versions go straight to main)
+  function back() { if (mode === "app") openRepo(browse.repo, true); else if (mode === "repo") openBrowse(); else goMain(); }
+  function two(n) { return (n < 10 ? "0" : "") + n; }
+  function stamp(t) { var d = new Date(t); return two(d.getDate()) + "/" + two(d.getMonth() + 1) + " " + two(d.getHours()) + ":" + two(d.getMinutes()); }
+  function openHistory() {
+    if (busy) return; show("history");
+    var hs = U.history().slice().reverse(), out = '<div class="grp"><span class="gn">Update history</span><span class="gm">' + hs.length + (hs.length === 1 ? " entry" : " entries") + "</span></div>";
+    for (var i = 0; i < hs.length; i++) {
+      var e = hs[i], st = !e.ok ? "failed" : e.kind === "rollback" ? "rolledback" : "updated", lab = !e.ok ? "Failed" : e.kind === "rollback" ? "Rolled back" : "Updated";
+      out += '<div class="row pick" tabindex="0" data-id="' + esc(e.id) + '" data-from="' + esc(e.from || "") + '"><div class="t">' + esc(e.title || e.id) + '</div><div class="v">' + esc(e.from || "–") + " → " + esc(e.to || "–") + '</div><div class="v" style="width:240px">' + esc(stamp(e.t)) + '</div><div class="s ' + st + '">' + lab + "</div></div>";
+      if (e.error) out += '<div class="failed" style="margin:-4px 0 10px 24px;font-size:22px">' + esc(e.error) + "</div>";
+    }
+    if (!hs.length) out += '<div class="sub">Nothing yet. Updates and roll-backs are listed here.</div>';
+    $("list").innerHTML = out; $("msg").textContent = hs.length ? "Press OK on an entry to pick a version of that app to go back to." : "";
+    var r = $("list").querySelector(".row"); (r || $("sb-back")).focus();
+  }
+  function openVersions(id, focusVersion) {
+    if (busy) return; var it = null, i;
+    for (i = 0; i < items.length; i++) if (items[i].id === id) it = items[i];
+    setBusy(true, "Reading the archive…");
+    U.versions(id).then(function (vs) {
+      setBusy(false, "");
+      if (!vs.length) { $("msg").textContent = "No older versions are saved for " + (it ? it.title : id) + "."; return; }
+      show("versions"); var have = it ? it.installed : null, out = '<div class="grp"><span class="gn">' + esc(it ? it.title : id) + '</span><span class="gm">installed ' + esc(have || "?") + "</span></div>";
+      for (i = 0; i < vs.length; i++) {
+        var v = vs[i], same = have && HBUpdater.compareVersions(v.version, have) === 0, down = have && HBUpdater.compareVersions(v.version, have) < 0;
+        out += '<div class="row pick" tabindex="0" data-id="' + esc(id) + '" data-version="' + esc(v.version) + '"' + (same ? ' data-same="1"' : "") + '><div class="t">' + esc(v.version) + '</div><div class="v">' + esc(v.date || "") + '</div><div class="s ' + (same ? "installed" : down ? "rollback" : "update") + '">' + (same ? "Installed" : down ? "Roll back" : "Install") + "</div></div>";
+      }
+      $("list").innerHTML = out; $("msg").textContent = "Press OK on a version, then OK again to confirm.";
+      var rows = $("list").querySelectorAll(".row"), f = rows[0]; for (i = 0; i < rows.length; i++) if (focusVersion && rows[i].getAttribute("data-version") === focusVersion) f = rows[i];
+      f.focus();
+    }, fail);
+  }
+  function pickVersion(row) {
+    if (busy || row.getAttribute("data-same")) return;
+    var id = row.getAttribute("data-id"), v = row.getAttribute("data-version"), key = id + "@" + v;
+    if (pending !== key) { pending = key; $("msg").textContent = "Press OK again to install " + v + "."; return; }
+    pending = null; setBusy(true, "Installing " + v + "… don't turn the TV off.");
+    U.installVersion(id, v).then(function (r) { setBusy(false, (r.rolledBack ? "Rolled back to " : "Installed ") + r.to + "."); return U.check().then(function (list) { items = list; show("main"); render(list); showLog(); }); }, function (e) { setBusy(false, (e && e.message) || String(e)); showLog(); });
+  }
+  function goMain() { show("main"); render(items); $("msg").textContent = ""; $("check").focus(); }
+  var browse = { cat: null, repo: 0, filter: "all", page: 0, app: null }, PAGE = 8;
+  // ---- app browser: repos -> apps of a repo (paged, filtered) -> one app (details, install or update, versions)
+  function openBrowse() {
+    if (busy) return; setBusy(true, "Reading the repos…");
+    Promise.all([U.catalog(), items.length ? items : U.check()]).then(function (r) {
+      browse.cat = r[0]; items = r[1]; setBusy(false, ""); show("repos");
+      var out = '<div class="grp"><span class="gn">Repos</span><span class="gm">' + browse.cat.length + "</span></div>";
+      for (var i = 0; i < browse.cat.length; i++) {
+        var c = browse.cat[i], n = 0, u = 0, j;
+        for (j = 0; j < c.apps.length; j++) { if (c.apps[j].installed) n++; if (updateFor(c.apps[j])) u++; }
+        out += '<div class="row pick" tabindex="0" data-i="' + i + '"><div class="t">' + esc(c.name) + (c.error ? '<div class="failed" style="font-size:22px">' + esc(c.error) + "</div>" : "") + '</div><div class="v">' + c.apps.length + " apps, " + n + ' installed</div><div class="s ' + (u ? "update" : "") + '">' + (u ? u + (u === 1 ? " update" : " updates") : "") + "</div></div>";
+      }
+      $("list").innerHTML = out; $("msg").textContent = "Press OK to open a repo.";
+      var row = $("list").querySelector(".row"); (row || $("sb-back")).focus();
+    }, fail);
+  }
+  function updateFor(app) { for (var i = 0; i < items.length; i++) if (items[i].id === app.id && items[i].state === "update") return items[i]; return null; }
+  function openRepo(ri, keep) {
+    var c = browse.cat && browse.cat[ri]; if (!c) return;
+    if (!keep) { browse.filter = "all"; browse.page = 0; }
+    browse.repo = ri;
+    var f = browse.filter, apps = c.apps.filter(function (a) { return f === "all" || (f === "installed" && a.installed) || (f === "updates" && updateFor(a)); });
+    var pages = Math.max(1, Math.ceil(apps.length / PAGE)); if (browse.page >= pages) browse.page = pages - 1;
+    show("repo", [{ id: "all", label: f === "all" ? "\u2022 All" : "All", fn: function () { browse.filter = "all"; browse.page = 0; openRepo(ri, true); } },
+      { id: "inst", label: f === "installed" ? "\u2022 Installed" : "Installed", fn: function () { browse.filter = "installed"; browse.page = 0; openRepo(ri, true); } },
+      { id: "upd", label: f === "updates" ? "\u2022 Updates" : "Updates", fn: function () { browse.filter = "updates"; browse.page = 0; openRepo(ri, true); } }]);
+    var slice = apps.slice(browse.page * PAGE, browse.page * PAGE + PAGE);
+    var out = '<div class="grp"><span class="gn">' + esc(c.name) + '</span><span class="gm">' + apps.length + (apps.length === 1 ? " app" : " apps") + (pages > 1 ? " \u00b7 page " + (browse.page + 1) + " of " + pages + " (Left/Right)" : "") + "</span></div>";
+    for (var i = 0; i < slice.length; i++) {
+      var a = slice[i], u = updateFor(a);
+      out += '<div class="row pick" tabindex="0" data-id="' + esc(a.id) + '"><div class="t">' + esc(a.title) + (a.desc ? '<div class="sub" style="font-size:22px">' + esc(a.desc) + "</div>" : "") + '</div><div class="v" style="width:200px">' + esc(a.installed || "") + '</div><div class="s ' + (u ? "update" : a.installed ? "installed" : "not-installed") + '" style="width:300px">' + (u ? "Update " + esc(u.available) : a.installed ? "Installed" : "Not installed") + "</div></div>";
+    }
+    if (!slice.length) out += '<div class="sub">' + (c.error ? esc(c.error) : "Nothing here.") + "</div>";
+    $("list").innerHTML = out; $("msg").textContent = "";
+    var row = $("list").querySelector(".row"); (row || $("sb-back")).focus();
+  }
+  function openApp(id) {
+    var c = browse.cat[browse.repo], app = null, i; for (i = 0; i < c.apps.length; i++) if (c.apps[i].id === id) app = c.apps[i];
+    if (!app) return; browse.app = app; setBusy(true, "Reading " + app.title + "…");
+    U.appInfo(app).then(function (info) {
+      setBusy(false, ""); var upd = app.installed && info.version && HBUpdater.compareVersions(info.version, app.installed) > 0, cur = app.installed && !upd;
+      show("app", [{ id: "act", label: cur ? "Up to date" : app.installed ? "Update to " + info.version : "Install " + (info.version || ""), fn: function () { installPicked(app, info); } }].concat(app.installed ? [{ id: "ver", label: "Older versions", fn: function () { openVersions(app.id); } }] : []));
+      $("sb-act").disabled = !!cur;
+      $("list").innerHTML = '<div class="grp"><span class="gn">' + esc(app.title) + '</span><span class="gm">' + esc(c.name) + "</span></div>" +
+        '<div class="row" style="display:block"><div>' + esc(app.long || app.desc || "") + '</div><div class="sub" style="margin-top:14px">' + (app.installed ? "Installed: " + esc(app.installed) + ". " : "Not installed. ") + "Newest in the repo: " + esc(info.version || "?") + (info.size ? " (" + Math.round(info.size / 1024) + " KB)" : "") + (info.rootRequired ? ". Needs a rooted TV." : ".") + "</div></div>";
+      $("msg").textContent = ""; (cur ? $("sb-back") : $("sb-act")).focus();
+    }, function (e) { setBusy(false, "Could not read " + app.title + ": " + ((e && e.message) || e)); });
+  }
+  function installPicked(app, info) {
+    if (busy) return; var key = "i:" + app.id;
+    if (pending !== key) { pending = key; $("msg").textContent = "Press OK again to " + (app.installed ? "update " : "install ") + app.title + " " + (info.version || "") + "."; return; }
+    pending = null; setBusy(true, (app.installed ? "Updating " : "Installing ") + app.title + "\u2026 don't turn the TV off.");
+    U.installApp(app).then(function (r) { setBusy(false, app.title + " is now " + r.to + "."); showLog(); return Promise.all([U.catalog(), U.check()]); }).then(function (r) {
+      if (!r) return; browse.cat = r[0]; items = r[1]; openRepo(browse.repo, true); $("msg").textContent = app.title + " is now up to date.";
+    }, function (e) { setBusy(false, (e && e.message) || String(e)); showLog(); });
+  }
   function paintAuto() { $("auto").textContent = "Auto-update: " + (autoOn ? "On (every 24 h)" : "Off"); }
+  $("list").onclick = function (e) { var r = e.target; while (r && r !== this && !(r.className || "").match(/\brow\b/)) r = r.parentNode; if (!r || r === this) return; if (mode === "main") { var st = r.getAttribute("data-state"); if (st === "update" || st === "held") runOne(r.getAttribute("data-id")); } else if (mode === "history") openVersions(r.getAttribute("data-id"), r.getAttribute("data-from")); else if (mode === "repos") openRepo(+r.getAttribute("data-i")); else if (mode === "repo") openApp(r.getAttribute("data-id")); else pickVersion(r); };   // Magic Remote pointer
+  $("hist").onclick = openHistory; $("browse").onclick = openBrowse;
   $("check").onclick = check;
   $("run").onclick = function () { run(); };
   $("auto").onclick = function () {
     U.setBoot(!autoOn, 24).then(function () { autoOn = !autoOn; paintAuto(); $("msg").textContent = autoOn ? "Auto-update is on. The TV checks about 2 minutes after it starts, then every 24 hours." : "Auto-update is off."; }, fail);
   };
   document.addEventListener("keydown", function (e) {
-    var k = e.keyCode, b = [$("check"), $("run"), $("auto")], i = b.indexOf(document.activeElement);
-    if (k === 37 || k === 39) { b[(i + (k === 39 ? 1 : b.length - 1)) % b.length].focus(); e.preventDefault(); }
-    else if (k === 461 || k === 27 || k === 8) { window.close(); }
+    var k = e.keyCode, b = mode === "main" ? [$("check"), $("run"), $("auto"), $("hist"), $("browse")] : [].slice.call($("subbar").querySelectorAll("button")), rows = document.querySelectorAll("#list .row"), cur = document.activeElement;
+    var bi = b.indexOf(cur), ri = -1, i;
+    for (i = 0; i < rows.length; i++) if (rows[i] === cur) ri = i;
+    if (ri >= 0) {                                              // on a row: Up/Down move, OK acts on it
+      if (k === 40 && ri < rows.length - 1) { rows[ri + 1].focus(); e.preventDefault(); }
+      else if (k === 38) { (ri > 0 ? rows[ri - 1] : b[0]).focus(); e.preventDefault(); }
+      else if (k === 13) { var id = cur.getAttribute("data-id");
+        if (mode === "main") { var st = cur.getAttribute("data-state"); if (st === "update" || st === "held") runOne(id); }
+        else if (mode === "history") openVersions(id, cur.getAttribute("data-from"));
+        else if (mode === "repos") openRepo(+cur.getAttribute("data-i"));
+        else if (mode === "repo") openApp(id);
+        else pickVersion(cur);
+        e.preventDefault(); }
+      else if ((k === 39 || k === 37) && mode === "repo") { browse.page = Math.max(0, browse.page + (k === 39 ? 1 : -1)); openRepo(browse.repo, true); e.preventDefault(); }   // Left/Right: page
+      else if (k === 39 && mode === "main") { openVersions(cur.getAttribute("data-id")); e.preventDefault(); }   // Right on an app: its saved versions
+    } else if (k === 37 || k === 39) { if (b.length > 1) { b[(bi + (k === 39 ? 1 : b.length - 1)) % b.length].focus(); e.preventDefault(); } }
+    else if (k === 40 && rows.length) { rows[0].focus(); e.preventDefault(); }
+    if (k === 461 || k === 27 || k === 8) { if (mode === "main") window.close(); else { back(); e.preventDefault(); } }
   });
   $("check").focus(); paintAuto();
+  U.restoreHistory();
   U.bootState().then(function (on) { autoOn = on; paintAuto(); });
   U.hbcState().then(function (h) { if (!h.ok) $("msg").textContent = "Homebrew Channel's service did not answer. Is Homebrew Channel installed and the TV rooted?"; else if (!launch.auto) $("msg").textContent = "Press Check now."; });
   if (launch.auto) { $("msg").textContent = "Automatic update…"; run(true).then(function () { setTimeout(function () { try { window.close(); } catch (e) {} }, 20000); }); }

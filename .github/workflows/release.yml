@@ -8,7 +8,7 @@ on:
       app:
         description: 'Which app to release (version comes from its appinfo.json)'
         type: choice
-        options: [both, launcher, updater, tailscale, cctv]
+        options: [both, launcher, updater, tailscale, cctv]   # both = every app; an app whose version is already built is left as it is
         default: both
   push:
     tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*']
@@ -39,13 +39,21 @@ jobs:
           publish() { # id title dir-or-dirs manifest-file rootRequired iconpath
             ID=$1; TITLE=$2; MAN=$3; ROOT=$4; ICON=$5; shift 5
             V=$(jq -r .version "$1/appinfo.json")
-            ares-package --no-minify "$@" -o dist
-            IPK="${ID}_${V}_all.ipk"; test -f "dist/$IPK"
+            IPK="${ID}_${V}_all.ipk"
+            # A released version never changes: if its IPK exists, keep those exact bytes (a rebuild changes the sha256 under the same URL,
+            # and a TV that cached the old manifest then fails with "invalid file checksum"). Bump the version in appinfo.json to ship changes.
+            if [ -f "dist/$IPK" ]; then echo "Keeping existing dist/$IPK"; else ares-package --no-minify "$@" -o dist; fi
+            test -f "dist/$IPK"
             SHA=$(sha256sum "dist/$IPK" | cut -d' ' -f1); SIZE=$(stat -c%s "dist/$IPK")
             OLD=$(cat "webosbrew/$MAN" 2>/dev/null || echo '{}')
             echo "$OLD" | jq --arg id "$ID" --arg t "$TITLE" --arg v "$V" --arg url "$RAW/dist/$IPK" --arg sha "$SHA" --argjson size "$SIZE" --argjson root "$ROOT" --arg icon "$RAW/$ICON" --arg src "https://github.com/$GITHUB_REPOSITORY" \
               '. + {id:$id,version:$v,type:"web",title:$t,iconUri:$icon,sourceUrl:$src,rootRequired:$root,ipkUrl:$url,ipkHash:{sha256:$sha},ipkSize:$size}' > "webosbrew/$MAN.tmp"
             mv "webosbrew/$MAN.tmp" "webosbrew/$MAN"
+            # archive of every released IPK (roll-back in the TV Updater reads this); the same version is only ever listed once
+            test -f webosbrew/archive.json || echo '{"versions":{}}' > webosbrew/archive.json
+            jq --arg id "$ID" --arg v "$V" --arg url "$RAW/dist/$IPK" --arg sha "$SHA" --argjson size "$SIZE" --arg d "$(date -u +%F)" \
+              '.versions[$id] = (((.versions[$id] // []) | map(select(.version != $v))) + [{version:$v,date:$d,ipkUrl:$url,ipkHash:{sha256:$sha},ipkSize:$size}])' webosbrew/archive.json > webosbrew/archive.tmp
+            mv webosbrew/archive.tmp webosbrew/archive.json
             echo "Built $IPK ($SIZE bytes, sha256 $SHA)"
           }
           if [ "$WHICH" = launcher ] || [ "$WHICH" = both ]; then

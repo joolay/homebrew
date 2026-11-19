@@ -10,10 +10,12 @@ function world(installed, manifests, o) {
   const call = (uri, p) => { calls.push(uri.split("/").pop() + " " + JSON.stringify(p));
     if (/exec$/.test(uri)) { execs.push(p.command); return Promise.resolve({ returnValue: true, stdoutString: p.command === "id -u" ? "0\n" : /test -f/.test(p.command) ? (o.boot ? "yes\n" : "no\n") : "" }); }
     if (/listApps$/.test(uri)) return Promise.resolve({ apps: Object.keys(installed).map(id => ({ id, version: installed[id] })) });
+    if (/install$/.test(uri) && /\/(\w+)_(\d[\d.]*)\.ipk$/.test(p.ipkUrl) && !Object.keys(manifests).some(k => manifests[k].ipkUrl === p.ipkUrl)) { const m = /\/(\w+)_(\d[\d.]*)\.ipk$/.exec(p.ipkUrl); installed[m[1]] = m[2]; return Promise.resolve({ finished: true }); }   // an archived version
     if (/install$/.test(uri)) { const id = Object.keys(manifests).filter(k => manifests[k].ipkUrl === p.ipkUrl)[0]; if (o.failInstall === id) return Promise.reject(new Error("install failed")); if (o.stuck !== id) installed[id] = manifests[id].version; return Promise.resolve({ finished: true }); }
     return Promise.reject(new Error("unexpected " + uri)); };
   const other = o.other || { packages: [] };   // the second repo's feed (an app listed there is shown only when installed)
-  const getText = (u) => u === HB.FEED ? Promise.resolve(JSON.stringify(feed)) : u === HB.REPOS[1].url ? (o.otherFails ? Promise.reject(new Error("offline")) : Promise.resolve(JSON.stringify(other))) : Promise.resolve(JSON.stringify(manifests[/m-(.*)\.json/.exec(u)[1]]));
+  const archive = o.archive || { versions: {} };
+  const getText = (u) => u === HB.ARCHIVE ? Promise.resolve(JSON.stringify(archive)) : u === HB.FEED ? Promise.resolve(JSON.stringify(feed)) : u === HB.REPOS[1].url ? (o.otherFails ? Promise.reject(new Error("offline")) : Promise.resolve(JSON.stringify(other))) : Promise.resolve(JSON.stringify(manifests[/m-(.*)\.json/.exec(u)[1]]));
   const mem = {}; return { u: HB.create({ call, getText, store: { get: k => mem[k] || null, set: (k, v) => { mem[k] = v; } } }), calls, execs, installed };
 }
 (async () => {
@@ -48,6 +50,32 @@ function world(installed, manifests, o) {
   ok(items.some(i => i.id === "a" && i.state === "update") && items.some(i => i.state === "error" && i.repo === "webOS Homebrew" && /offline/.test(i.error)), "a repo that cannot be read shows one error row and the others still work");
   w = world({ a: "1.0.0" }, { a: man("a", "1.1.0") }); w.u.setConfig({ repos: [{ id: "x", name: "Mine", url: HB.FEED, all: true }] }); items = await w.u.check();
   ok(items.length === 1 && items[0].repo === "Mine", "the list of repos can be changed");
+  // history and roll-back
+  const av = (id, v) => ({ version: v, date: "2026-11-1" + v.slice(-1), ipkUrl: "https://x/" + id + "_" + v + ".ipk", ipkHash: { sha256: "CD".repeat(32) } });
+  w = world({ a: "1.0.0" }, { a: man("a", "1.1.0") }); await w.u.run({}); let hist = w.u.history();
+  ok(hist.length === 1 && hist[0].id === "a" && hist[0].from === "1.0.0" && hist[0].to === "1.1.0" && hist[0].ok && hist[0].kind === "update" && hist[0].repo === "JoolzTV", "an update is saved in the history");
+  w = world({ a: "1.0.0" }, { a: man("a", "1.1.0") }, { failInstall: "a" }); await w.u.run({}); hist = w.u.history();
+  ok(hist.length === 1 && hist[0].ok === false && /install failed/.test(hist[0].error), "a failed update is saved too");
+  ok(w.execs.some(e => /joolay-updater-history/.test(e) && /base64/.test(e)), "the history is also copied to a file");
+  w = world({ a: "1.1.0" }, { a: man("a", "1.1.0") }, { archive: { versions: { a: [av("a", "1.0.0"), av("a", "1.1.0")] } } });
+  let vs = await w.u.versions("a"); ok(vs.length === 2 && vs[0].version === "1.1.0" && vs[1].version === "1.0.0", "versions come from the archive, newest first");
+  const res = await w.u.installVersion("a", "1.0.0"); ok(w.installed.a === "1.0.0" && res.rolledBack, "roll back installs the older archived version");
+  ok(w.calls.some(c => /install/.test(c) && /a_1\.0\.0\.ipk/.test(c) && /"ipkHash":"(cd){32}"/.test(c)), "the archived IPK is checked with its own sha256");
+  w.installed.a = "1.0.0"; items = await w.u.check(); ok(items[0].state === "held", "after a roll back the app is held, not offered the same update again");
+  items = await w.u.run({}); ok(w.installed.a === "1.0.0", "automatic update leaves a held app alone");
+  hist = w.u.history(); ok(hist[hist.length - 1].kind === "rollback" && hist[hist.length - 1].from === "1.1.0" && hist[hist.length - 1].to === "1.0.0", "the roll back is in the history");
+  w.u.setConfig({}); w.installed.a = "1.0.0"; const w2 = world({ a: "1.0.0" }, { a: man("a", "1.2.0") }, { archive: { versions: { a: [av("a", "1.0.0")] } } });
+  w2.u.setConfig({ hold: { a: "1.1.0" } }); items = await w2.u.check(); ok(items[0].state === "update", "a release newer than the one that was undone is offered again");
+  await w.u.installVersion("a", "1.1.0"); items = await w.u.check(); ok(w.installed.a === "1.1.0" && items[0].state === "current", "installing a newer archived version lifts the hold");
+  let bad = null; try { await w.u.installVersion("a", "9.9.9"); } catch (e) { bad = e; } ok(bad && /not in the archive/.test(bad.message), "an unknown version is refused");
+  // app browser
+  w = world({ a: "1.0.0" }, { a: man("a", "1.1.0"), b: man("b", "9.0.0") }, { own: ["a", "b"], other: { packages: [Object.assign(pkg("z"), { shortDescription: "Zed" })] } });
+  let cat = await w.u.catalog(); ok(cat.length === 2 && cat[0].name === "JoolzTV" && cat[0].apps.map(x => x.id).join() === "a,b" && cat[1].apps[0].desc === "Zed", "the browser lists every app of every repo, by repo");
+  ok(cat[0].apps[0].installed === "1.0.0" && cat[0].apps[1].installed === null, "each app knows what is installed");
+  let ai = await w.u.appInfo(cat[0].apps[1]); ok(ai.version === "9.0.0", "an app's details come from its manifest");
+  const r1 = await w.u.installApp(cat[0].apps[1]); ok(w.installed.b === "9.0.0" && r1.from === null, "an app that is not on the TV can be installed from the browser");
+  ok(w.u.history().pop().kind === "install", "and is saved in the history as an install");
+  bad = null; try { await w.u.installApp(cat[0].apps[1]); } catch (e) { bad = e; } ok(bad && /up to date/.test(bad.message), "installing what is already current is refused");
   ok(fs.readFileSync(path.join(__dirname, "../hb-updater.js"), "utf8") === fs.readFileSync(path.join(__dirname, "../../app-flix/hb-updater.js"), "utf8"), "the launcher carries the same updater code");
   console.log("ALL PASSED (" + n + ")");
 })().catch(e => { console.log("FAIL", e.stack); process.exit(1); });
