@@ -2,14 +2,14 @@
 // TV Remote agent: runs on the rooted TV (started by the TV Remote app through Homebrew Channel). It listens on NO port: it connects OUT to the
 // TV Remote app on your Umbrel and does only what that server asks: one screenshot at a time, remote keys / pointer, text, app launch. All the
 // work of showing the picture to people (sharing frames, slowing down when nothing changes) is done by the Umbrel server, not the TV.
-// Written for the old Node on webOS 4 (Node 8): no optional chaining, no dependencies.
+// Written for the old Node on webOS 4 (Node 0.12: no Buffer.alloc/from, no Buffer#indexOf, no http timeout option, no req.destroy): no optional chaining, no dependencies.
 var http = require("http");
 var fs = require("fs");
 var path = require("path");
 var cp = require("child_process");
 var ws = require("./ws");
 
-var VERSION = "0.1.0";
+var VERSION = "0.1.1";
 var CFG_DIR = process.env.TVREMOTE_DIR || "/var/lib/joolay-tvremote";
 var CFG_FILE = path.join(CFG_DIR, "config.json");
 var PID_FILE = path.join(CFG_DIR, "agent.pid");
@@ -39,7 +39,7 @@ function pair(addr, code, name, cb) {
   var a = cleanHost(addr); if (!a) return cb(new Error("That Umbrel address does not look right"));
   if (!/^\d{4}$/.test(String(code || ""))) return cb(new Error("The code is 4 digits"));
   var body = JSON.stringify({ code: String(code), name: name || "LG TV" }), done = false;
-  var req = http.request({ host: a.host, port: a.port, path: "/agent/pair", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 10000 }, function (res) {
+  var req = http.request({ host: a.host, port: a.port, path: "/agent/pair", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, function (res) {
     var ch = []; res.on("data", function (d) { ch.push(d); });
     res.on("end", function () {
       if (done) return; done = true; var j = {}; try { j = JSON.parse(Buffer.concat(ch).toString("utf8")); } catch (e) {}
@@ -48,7 +48,7 @@ function pair(addr, code, name, cb) {
       cb(null, { umbrel: c.umbrel, tvId: j.id });
     });
   });
-  req.on("timeout", function () { req.destroy(new Error("The Umbrel app did not answer")); });
+  req.setTimeout(10000, function () { if (done) return; done = true; try { req.abort(); } catch (e) {} cb(new Error("The Umbrel app did not answer")); });
   req.on("error", function (e) { if (done) return; done = true; cb(e); });
   req.end(body);
 }
@@ -110,7 +110,7 @@ function handle(conn, m) {
     return capture(m.w, function (err, b) {
       busyShot = false;
       if (err || !b || !b.length) return reply(err || new Error("empty picture"));
-      var head = Buffer.alloc(4); head.writeUInt32BE(m.id >>> 0, 0); conn.sendBinary(Buffer.concat([head, b]));
+      var head = ws.alloc(4); head.writeUInt32BE(m.id >>> 0, 0); conn.sendBinary(Buffer.concat([head, b]));
     });
   }
   if (m.cmd === "key") return typeof m.name === "string" && KEYS.test(m.name) ? sendPointer("type:button\nname:" + m.name + "\n\n", reply) : reply(new Error("Unknown key"));
