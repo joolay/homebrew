@@ -9,3 +9,5 @@ Report which row opened the right title, and which one started playing (not just
 The first two rows are hard-coded to Stranger Things (Netflix id 80057281, TMDB tv 66732), which the Netflix South Africa site lists as available. The TMDB id was not checked online; the Netflix id and South Africa listing were.
 
 0.2.0 adds two groups of tests. **Browser** rows open Netflix's web pages in the TV browser (do they load, signed in, with the profile list?). **App data** rows read the Netflix folders and `appinfo.json` as root, read only, and show the result on screen: file names, sizes and which files mention "profile" (contents are not printed). Left/Right scroll the result panel.
+
+0.3.0 adds **Netflix Watch**: *start logging* runs a read-only background logger for 30 min (which Netflix files appear or change, which files the Netflix process has open, which app is in front; names, sizes and times only, never contents). Open Netflix, pick a profile, play something, then open *report*. Log: `/var/lib/webosbrew/joolay-netflix-log.txt`.
