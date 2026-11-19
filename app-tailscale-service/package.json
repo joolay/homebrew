@@ -1,6 +1,6 @@
 {
   "name": "io.joolay.tvtailscale.service",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Installs and runs Tailscale on a rooted LG webOS TV",
   "main": "tailscale.js",
   "private": true

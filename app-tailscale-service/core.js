@@ -1,6 +1,6 @@
 "use strict";
 // Core logic of the TV Tailscale service. No webOS APIs in here, so it runs (and is tested) anywhere.
-// Written for the old Node on webOS 4 (Node 8): no optional chaining, no dependencies.
+// Written for the old Node on webOS 4 (Node 0.12): no optional chaining, no dependencies.
 var https = require("https");
 var http = require("http");
 var net = require("net");
@@ -168,24 +168,29 @@ function summarize(j) {
   };
 }
 
+// Node 0.12 (webOS 4) has no Buffer.alloc / Buffer.from: use them when present, the old constructor otherwise.
+var NEWBUF = typeof Buffer.alloc === "function";
+function bAlloc(n) { if (NEWBUF) return Buffer.alloc(n); var b = new Buffer(n); b.fill(0); return b; }
+function bFrom(x, enc) { return NEWBUF ? Buffer.from(x, enc) : new Buffer(x, enc); }
+
 // ---- SOCKS5 client and local forwarder ----------------------------------------------------------------------------------
 // Opens a connection to host:port through a SOCKS5 proxy without a login. Resolves with the connected socket.
 function socks5Connect(proxyHost, proxyPort, host, port) {
   return new Promise(function (resolve, reject) {
-    var s = net.connect(proxyPort, proxyHost), buf = Buffer.alloc(0), step = 0, need = 2, done = false;
+    var s = net.connect(proxyPort, proxyHost), buf = bAlloc(0), step = 0, need = 2, done = false;
     function fail(e) { if (done) return; done = true; s.destroy(); reject(e instanceof Error ? e : new Error(String(e))); }
     s.setTimeout(15000, function () { fail(new Error("Proxy timed out")); });
     s.on("error", fail);
     s.on("close", function () { fail(new Error("Proxy closed the connection")); });
-    s.on("connect", function () { s.write(Buffer.from([5, 1, 0])); });
+    s.on("connect", function () { s.write(bFrom([5, 1, 0])); });
     s.on("data", function onData(d) {
       buf = Buffer.concat([buf, d]);
       while (!done && buf.length >= need) {
         if (step === 0) {
           if (buf[0] !== 5 || buf[1] !== 0) return fail(new Error("Proxy refused the handshake"));
           buf = buf.slice(2); step = 1;
-          var h = Buffer.from(host);
-          s.write(Buffer.concat([Buffer.from([5, 1, 0, 3, h.length]), h, Buffer.from([port >> 8, port & 255])]));
+          var h = bFrom(host);
+          s.write(Buffer.concat([bFrom([5, 1, 0, 3, h.length]), h, bFrom([port >> 8, port & 255])]));
           need = 5;
         } else {
           // reply: VER REP RSV ATYP then the bound address (4, 16 or 1+len bytes) and 2 port bytes
