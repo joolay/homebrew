@@ -8,10 +8,10 @@ on:
       app:
         description: 'Which app to release (version comes from its appinfo.json)'
         type: choice
-        options: [both, launcher, updater, tailscale, cctv, linktest, remote]   # both = every app; an app whose version is already built is left as it is
+        options: [both, launcher, updater, tailscale, cctv, linktest, remote, powertest]   # both = every app; an app whose version is already built is left as it is
         default: both
   push:
-    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*', 'linktest-v*', 'remote-v*']
+    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*', 'linktest-v*', 'remote-v*', 'powertest-v*']
 permissions:
   contents: write
 concurrency: release
@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           RAW="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main"
           WHICH=both
-          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; linktest-v*) WHICH=linktest;; remote-v*) WHICH=remote;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
+          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; linktest-v*) WHICH=linktest;; remote-v*) WHICH=remote;; powertest-v*) WHICH=powertest;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
           mkdir -p dist
           publish() { # id title dir-or-dirs manifest-file rootRequired iconpath
             ID=$1; TITLE=$2; MAN=$3; ROOT=$4; ICON=$5; shift 5
@@ -79,6 +79,10 @@ jobs:
           if [ "$WHICH" = remote ] || [ "$WHICH" = both ]; then
             publish io.joolay.tvremote "TV Remote" manifest-remote.json true app-remote/largeIcon.png app-remote
             jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvremote") then . else .packages += [{id:"io.joolay.tvremote",title:"TV Remote",iconUri:($raw+"/app-remote/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-remote.json"),pool:"main",shortDescription:"Connects this TV to the TV Remote app on your Umbrel, to see and control it from anywhere",description:"Runs a small agent on the TV that connects out to the TV Remote app on your Umbrel (pair with a 4-digit code). The Umbrel app shows the TV screen and sends remote keys, text and app launches, so nothing connects to the TV itself and the TV only works while someone is watching. Needs a rooted TV with Homebrew Channel."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
+          fi
+          if [ "$WHICH" = powertest ] || [ "$WHICH" = both ]; then
+            publish io.joolay.tvpowertest "Power Test" manifest-powertest.json true app-powertest/largeIcon.png app-powertest
+            jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvpowertest") then . else .packages += [{id:"io.joolay.tvpowertest",title:"Power Test",iconUri:($raw+"/app-powertest/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-powertest.json"),pool:"main",shortDescription:"Test: what does the TV do when switched off with the remote?",description:"A small test app, separate from the others. Logs a heartbeat, the boot times and the TV power state every 30 seconds so we can see whether the TV fully shuts down or stays alive in standby, and whether a background script can launch an app while it is in standby. Needs a rooted TV with Homebrew Channel."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
           fi
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist webosbrew

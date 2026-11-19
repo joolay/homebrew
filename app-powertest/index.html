@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Power Test</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Chromium 53: no grid, no gap, no sticky, no min()/clamp() */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#0b0d12;color:#f2f4f8;font:26px/1.35 sans-serif;padding:40px 70px;overflow:hidden}
+h1{margin:0 0 4px;font-size:46px}
+.sub{color:#9aa3b2;font-size:22px;margin-bottom:16px}
+.bar{margin-bottom:14px}
+button{font:inherit;font-size:24px;color:#fff;background:rgba(255,255,255,.12);border:2px solid transparent;border-radius:16px;padding:10px 22px;margin:0 12px 10px 0;outline:0}
+button:focus{border-color:#4d9bff;background:rgba(77,155,255,.35)}
+button[disabled]{opacity:.45}
+#st{font-size:23px;margin-bottom:10px}
+#st b{font-weight:600}.on{color:#6ee7a0}.off{color:#9aa3b2}.warn{color:#ffd166}
+#msg{color:#ffd166;min-height:34px;font-size:22px;margin-bottom:8px}
+#out{height:600px;overflow:auto;font:21px/1.45 monospace;background:#10141d;border-radius:14px;padding:14px 20px;white-space:pre-wrap}
+.ev{color:#e8ecf4}.boot{color:#ff9f68}.gap{color:#ffd166}.pst{color:#4d9bff}.pr{color:#6ee7a0}.dim{color:#7d8696}
+</style></head><body>
+<h1>Power Test</h1>
+<div class="sub">Logs what the TV does when switched off with the remote. Start logging, press Mark, switch the TV off with the remote, wait, switch it on and open this app. Up/Down scroll the report.</div>
+<div class="bar" id="bar">
+  <button id="start">Start logging</button><button id="mark">Mark: about to power off</button><button id="probe">Probe: …</button><button id="refresh">Refresh</button><button id="stop">Stop and remove</button><button id="clear">Clear log</button>
+</div>
+<div id="st">Checking…</div>
+<div id="msg"></div>
+<div id="out">Loading…</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (i) { return document.getElementById(i); };
+  var HBC = "luna://org.webosbrew.hbchannel.service/exec";
+  var ID = "io.joolay.tvpowertest";
+  var LOG = "/var/lib/webosbrew/joolay-power-log.txt";
+  var SCRIPT = "/var/lib/webosbrew/init.d/91-joolay-powertest";
+  var PROBE = "/var/lib/webosbrew/joolay-power-probe";
+  var PIDF = "/tmp/joolay-power.pid";
+  var BEAT = 30, GAP = 75;
+  var launch = {}; try { launch = JSON.parse((window.PalmSystem && window.PalmSystem.launchParams) || "{}") || {}; } catch (e) {}
+
+  function b64(s) { return btoa(s); }
+  function call(uri, params, timeout) {
+    return new Promise(function (resolve, reject) {
+      var done = false, b = null, t = null;
+      function end(fn, v) { if (done) return; done = true; clearTimeout(t); try { if (b && b.cancel) b.cancel(); } catch (e) {} fn(v); }
+      try {
+        b = new PalmServiceBridge();
+        t = setTimeout(function () { end(reject, new Error("No answer from Homebrew Channel")); }, timeout || 20000);
+        b.onservicecallback = function (m) {
+          var j; try { j = JSON.parse(m); } catch (e) { return end(reject, new Error("Bad answer")); }
+          if (j.returnValue === false) return end(reject, new Error(j.errorText || ("error " + j.errorCode)));
+          end(resolve, j);
+        };
+        b.call(uri, JSON.stringify(params || {}));
+      } catch (e) { end(reject, new Error("This only works on the TV (no webOS service bridge here)")); }
+    });
+  }
+  function exec(cmd, timeout) {
+    return call(HBC, { command: cmd }, timeout).then(function (j) { return String(j.stdoutString != null ? j.stdoutString : (j.stdout != null ? j.stdout : "")); });
+  }
+  function runScript(s, timeout) { return exec("echo " + b64(s) + " | base64 -d | sh", timeout); }
+
+  // The logger. Runs from init.d at every boot, and is started right away by "Start logging".
+  function loggerScript() {
+    return "#!/bin/sh\n# Power Test logger: written by the Power Test app, removed by its Stop button\n" +
+      "LOG=" + LOG + "; PROBE=" + PROBE + "; PIDF=" + PIDF + "\n" +
+      "T=''; command -v timeout >/dev/null 2>&1 && T='timeout 5'\n" +
+      "state() { s=$($T luna-send -n 1 luna://com.webos.service.tvpower/power/getPowerState '{}' 2>/dev/null | sed -n 's/.*\"state\":\"\\([^\"]*\\)\".*/\\1/p' | tr ' ' _); echo \"${s:--}\"; }\n" +
+      "line() { echo \"$(date +%s) $(cut -d' ' -f1 /proc/uptime) $(state) $1\" >> $LOG; }\n" +
+      "mkdir -p /var/lib/webosbrew\n" +
+      "[ -f $PIDF ] && kill $(cat $PIDF) 2>/dev/null\n" +
+      "[ -f $LOG ] && [ $(wc -l < $LOG) -gt 6000 ] && tail -n 3000 $LOG > $LOG.tmp && mv $LOG.tmp $LOG\n" +
+      "( line BOOT; n=0\n" +
+      "  while true; do\n" +
+      "    sleep " + BEAT + "; n=$((n+1)); line BEAT\n" +
+      "    if [ -f $PROBE ] && [ $((n % 60)) -eq 0 ]; then luna-send-pub -n 1 -f luna://com.webos.service.applicationManager/launch '{\"id\":\"" + ID + "\",\"params\":{\"probe\":true}}' >/dev/null 2>&1; fi\n" +
+      "  done ) >/dev/null 2>&1 &\n" +
+      "echo $! > $PIDF\n";
+  }
+  function logLine(tag) {                                          // the app's own entries, same format as the logger's
+    return exec("echo \"$(date +%s) $(cut -d' ' -f1 /proc/uptime) - " + tag + "\" >> " + LOG + " && echo ok", 10000).catch(function () {});
+  }
+
+  // ---- report
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function when(t) { var d = new Date(t * 1000); return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); }
+  function dur(s) { s = Math.round(s); if (s < 90) return s + " s"; if (s < 5400) return Math.round(s / 60) + " min"; return (Math.round(s / 360) / 10) + " h"; }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function parse(text) {
+    var out = [], ls = text.split("\n"), i, p;
+    for (i = 0; i < ls.length; i++) {
+      p = ls[i].trim().split(/\s+/);
+      if (p.length >= 4 && /^\d+$/.test(p[0])) out.push({ t: +p[0], u: parseFloat(p[1]), s: p[2], g: p[3] });
+    }
+    return out;
+  }
+  function report(rows) {
+    if (!rows.length) return "<span class='dim'>The log is empty. Press Start logging, wait a minute, then Refresh.</span>";
+    var ev = [], i, a, b, dt, du, last = rows[rows.length - 1], first = rows[0];
+    var beats = 0, probes = 0, boots = 0, pauses = 0, states = {};
+    for (i = 0; i < rows.length; i++) {
+      a = rows[i]; states[a.s] = 1;
+      if (a.g === "BEAT") beats++;
+      if (a.g === "BOOT") { boots++; ev.push("<span class='boot'>" + when(a.t) + "  BOOT: the logger started (a real start of the TV, or Start logging pressed). uptime " + dur(a.u) + "</span>"); }
+      if (a.g === "MARK") ev.push("<span class='pr'>" + when(a.t) + "  MARK: you pressed 'about to power off'</span>");
+      if (a.g === "APP-OPEN") ev.push("<span class='ev'>" + when(a.t) + "  App opened (state " + esc(a.s) + ", uptime " + dur(a.u) + ")</span>");
+      if (a.g === "PROBE-OPEN") { probes++; ev.push("<span class='pr'>" + when(a.t) + "  PROBE: the background script launched this app (state " + esc(a.s) + ")</span>"); }
+      if (i > 0) {
+        b = rows[i - 1]; dt = a.t - b.t; du = a.u - b.u;
+        if (a.g !== "BOOT" && dt > GAP) {
+          pauses++;
+          ev.push("<span class='gap'>" + when(b.t) + "  PAUSE " + dur(dt) + " with no heartbeat until " + when(a.t) + ". Uptime moved " + dur(Math.max(du, 0)) + ": " +
+            (du > dt * 0.8 ? "Linux kept running, the script was frozen or the TV was suspended" : (du >= 0 ? "Linux was suspended (the uptime clock stopped)" : "uptime went back, so the TV restarted")) + "</span>");
+        }
+        if (a.s !== b.s && a.s !== "-" && b.s !== "-") ev.push("<span class='pst'>" + when(a.t) + "  Power state " + esc(b.s) + " to " + esc(a.s) + "</span>");
+      }
+    }
+    var names = []; for (var k in states) names.push(k);
+    var head = "<b>" + rows.length + " lines</b> from " + when(first.t) + " to " + when(last.t) + ".  Boots: " + boots + "   Pauses: " + pauses + "   Probes: " + probes + "\nPower states seen: " + (names.join(", ") || "none") + "\n" +
+      "<span class='dim'>Reading it: BOOT without a PAUSE before it = the TV fully shut down. PAUSE with 'Linux kept running' = standby with the system alive. Power state '-' means the TV did not answer that query.</span>\n\n";
+    return head + (ev.length ? ev.slice(-40).join("\n") : "<span class='dim'>Nothing notable yet.</span>") + "\n\n<span class='dim'>Last lines (time, uptime s, state, tag):</span>\n" +
+      rows.slice(-12).map(function (r) { return "<span class='dim'>" + when(r.t) + "  " + Math.round(r.u) + "  " + esc(r.s) + "  " + esc(r.g) + "</span>"; }).join("\n");
+  }
+
+  var probeOn = false, running = false, installed = false;
+  function say(m) { $("msg").textContent = m || ""; }
+  function fail(e) { say("Problem: " + (e && e.message || e)); }
+  function paint() {
+    $("st").innerHTML = "Logger: <b class='" + (running ? "on" : "warn") + "'>" + (running ? "running" : "not running") + "</b>   At boot: <b class='" + (installed ? "on" : "off") + "'>" + (installed ? "yes" : "no") + "</b>   Probe: <b class='" + (probeOn ? "on" : "off") + "'>" + (probeOn ? "on (every 30 min)" : "off") + "</b>";
+    $("probe").textContent = "Probe: " + (probeOn ? "On" : "Off");
+  }
+  function refresh() {
+    return exec("echo run=$(kill -0 $(cat " + PIDF + " 2>/dev/null) 2>/dev/null && echo 1 || echo 0); echo boot=$(test -f " + SCRIPT + " && echo 1 || echo 0); echo probe=$(test -f " + PROBE + " && echo 1 || echo 0); echo ---; tail -n 1500 " + LOG + " 2>/dev/null", 25000).then(function (s) {
+      var i = s.indexOf("---"), h = s.slice(0, i);
+      running = /run=1/.test(h); installed = /boot=1/.test(h); probeOn = /probe=1/.test(h); paint();
+      $("out").innerHTML = report(parse(s.slice(i + 3)));
+    }).catch(fail);
+  }
+
+  $("start").onclick = function () {
+    say("Installing the logger…");
+    runScript("mkdir -p /var/lib/webosbrew/init.d && echo " + b64(loggerScript()) + " | base64 -d > " + SCRIPT + " && chmod 755 " + SCRIPT + " && sh " + SCRIPT + " && echo done", 30000)
+      .then(function () { say("Logging started. A line is written every " + BEAT + " s and at every boot."); return refresh(); }).catch(fail);
+  };
+  $("stop").onclick = function () {
+    exec("[ -f " + PIDF + " ] && kill $(cat " + PIDF + ") 2>/dev/null; rm -f " + SCRIPT + " " + PROBE + " " + PIDF + "; echo done").then(function () { say("Logger stopped and removed. The log file is kept."); return refresh(); }).catch(fail);
+  };
+  $("clear").onclick = function () { exec("rm -f " + LOG + " && echo done").then(function () { say("Log cleared."); return refresh(); }).catch(fail); };
+  $("probe").onclick = function () {
+    exec(probeOn ? "rm -f " + PROBE + " && echo done" : "touch " + PROBE + " && echo done").then(function () { say(probeOn ? "Probe off." : "Probe on: every 30 minutes the logger opens this app, which logs PROBE and closes itself."); return refresh(); }).catch(fail);
+  };
+  $("mark").onclick = function () {
+    logLine("MARK").then(function () { say("Marked at " + when(Math.floor(Date.now() / 1000)) + ". Now switch the TV off with the remote, wait, switch it on, and open this app again."); return refresh(); });
+  };
+  $("refresh").onclick = function () { say(""); refresh(); };
+
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode, bs = [].slice.call($("bar").querySelectorAll("button")), i = bs.indexOf(document.activeElement), o = $("out");
+    if (k === 37 || k === 39) { bs[(i + (k === 39 ? 1 : bs.length - 1)) % bs.length].focus(); e.preventDefault(); }
+    else if (k === 40) { o.scrollTop += 220; e.preventDefault(); }
+    else if (k === 38) { o.scrollTop -= 220; e.preventDefault(); }
+    else if (k === 13 && document.activeElement && document.activeElement.tagName === "BUTTON") { document.activeElement.click(); e.preventDefault(); }
+    else if (k === 461 || k === 27 || k === 8) { try { window.close(); } catch (x) {} }
+  });
+  $("start").focus(); paint();
+  // opened by the logger's probe: note it, then close (so it does not sit on screen)
+  if (launch.probe) { logLine("PROBE-OPEN").then(function () { say("Probe: logged. Closing…"); setTimeout(function () { try { window.close(); } catch (e) {} }, 6000); }); }
+  else { logLine("APP-OPEN").then(refresh); }
+})();
+</script></body></html>

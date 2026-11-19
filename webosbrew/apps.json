@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 6,
+    "count": 7,
     "maxPage": 1,
-    "itemsTotal": 6
+    "itemsTotal": 7
   },
   "packages": [
     {
@@ -59,6 +59,15 @@
       "pool": "main",
       "shortDescription": "Connects this TV to the TV Remote app on your Umbrel, to see and control it from anywhere",
       "description": "Runs a small agent on the TV that connects out to the TV Remote app on your Umbrel (pair with a 4-digit code). The Umbrel app shows the TV screen and sends remote keys, text and app launches, so nothing connects to the TV itself and the TV only works while someone is watching. Needs a rooted TV with Homebrew Channel."
+    },
+    {
+      "id": "io.joolay.tvpowertest",
+      "title": "Power Test",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-powertest/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-powertest.json",
+      "pool": "main",
+      "shortDescription": "Test: what does the TV do when switched off with the remote?",
+      "description": "A small test app, separate from the others. Logs a heartbeat, the boot times and the TV power state every 30 seconds so we can see whether the TV fully shuts down or stays alive in standby, and whether a background script can launch an app while it is in standby. Needs a rooted TV with Homebrew Channel."
     }
   ]
 }

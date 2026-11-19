@@ -1,0 +1,14 @@
+{
+  "id": "io.joolay.tvpowertest",
+  "version": "0.1.0",
+  "type": "web",
+  "title": "Power Test",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-powertest/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": true,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvpowertest_0.1.0_all.ipk",
+  "ipkHash": {
+    "sha256": "2d53394586f3652f253af3e6591880887ce5ede38e380a33e79f42bd29c4fdd2"
+  },
+  "ipkSize": 8198
+}
