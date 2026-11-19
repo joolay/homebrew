@@ -78,38 +78,39 @@ h1{margin:0 0 6px;font-size:44px}
   };
   // Netflix Watch: a background logger (read only: it only lists names, sizes and times, never file contents). Stops by itself after 30 min.
   var NFLOG = "/var/lib/webosbrew/joolay-netflix-log.txt", NFSH = "/var/lib/webosbrew/joolay-nfwatch.sh";
-  var WATCH = String.raw`LOG=/var/lib/webosbrew/joolay-netflix-log.txt
-PIDF=/tmp/joolay-nfwatch.pid
-[ -f $PIDF ] && kill $(cat $PIDF) 2>/dev/null
-echo $$ > $PIDF
-: > $LOG
-log() { echo "$(date +%s) $1 $2" >> $LOG; }
-DIRS=$(ls -d /var/palm/jail/*etflix* /var/palm/data/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* 2>/dev/null | tr '\n' ' ')
-log START "folders watched: $DIRS"
-W=/tmp/jnf; mkdir -p $W; : > $W/files; : > $W/open
-FG=x; PP=x; first=1
-END=$(( $(date +%s) + 1800 ))
-while [ $(date +%s) -lt $END ]; do
-  f=$(timeout 4 luna-send -n 1 -f luna://com.webos.service.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | sed -n 's/.*"appId" *: *"\([^"]*\)".*/\1/p' | head -1)
-  if [ -n "$f" ] && [ "$f" != "$FG" ]; then log FG "app in front: $f"; FG=$f; fi
-  P=$(ps 2>/dev/null | grep -i netflix | grep -v grep | sed 's/^ *\([0-9]*\) .*/\1/' | tr '\n' ' ')
-  [ -z "$P" ] && P=none
-  if [ "$P" != "$PP" ]; then log PROC "netflix process ids: $P"; PP=$P; fi
-  : > $W/files.new
-  [ -n "$DIRS" ] && timeout 20 find $DIRS -xdev -maxdepth 8 -type f -printf '%T@ %s %p\n' 2>/dev/null | sed 's/^\([0-9]*\)\.[0-9]* /\1 /' | sort -k3 > $W/files.new
-  if [ $first -eq 1 ]; then log BASE "$(wc -l < $W/files.new) files in the watched folders now"
-  else diff $W/files $W/files.new | grep '^>' | head -40 | while read a t s p; do log FILE "new or changed: $p ($s bytes)"; done; fi
-  mv $W/files.new $W/files
-  : > $W/open.new
-  if [ "$P" != none ]; then for pid in $P; do ls -l /proc/$pid/fd 2>/dev/null | sed 's/.* -> //' | grep '^/' | grep -v -E '^/(dev|proc|sys)/'; done | sort -u > $W/open.new; fi
-  if [ $first -eq 0 ]; then diff $W/open $W/open.new | grep '^>' | head -30 | while read a p; do log OPEN "file now open: $p"; done; fi
-  mv $W/open.new $W/open
-  first=0
-  sleep 4
-done
-log STOP "30 minutes passed"
-rm -f $PIDF
-`;
+  var WATCH = [
+    "LOG=/var/lib/webosbrew/joolay-netflix-log.txt",
+    "PIDF=/tmp/joolay-nfwatch.pid",
+    "[ -f $PIDF ] && kill $(cat $PIDF) 2>/dev/null",
+    "echo $$ > $PIDF",
+    ": > $LOG",
+    "log() { echo \"$(date +%s) $1 $2\" >> $LOG; }",
+    "DIRS=$(ls -d /var/palm/jail/*etflix* /var/palm/data/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* 2>/dev/null | tr '\\n' ' ')",
+    "log START \"folders watched: $DIRS\"",
+    "W=/tmp/jnf; mkdir -p $W; : > $W/files; : > $W/open",
+    "FG=x; PP=x; first=1",
+    "END=$(( $(date +%s) + 1800 ))",
+    "while [ $(date +%s) -lt $END ]; do",
+    "  f=$(timeout 4 luna-send -n 1 -f luna://com.webos.service.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | sed -n 's/.*\"appId\" *: *\"\\([^\"]*\\)\".*/\\1/p' | head -1)",
+    "  if [ -n \"$f\" ] && [ \"$f\" != \"$FG\" ]; then log FG \"app in front: $f\"; FG=$f; fi",
+    "  P=$(ps 2>/dev/null | grep -i netflix | grep -v grep | sed 's/^ *\\([0-9]*\\) .*/\\1/' | tr '\\n' ' ')",
+    "  [ -z \"$P\" ] && P=none",
+    "  if [ \"$P\" != \"$PP\" ]; then log PROC \"netflix process ids: $P\"; PP=$P; fi",
+    "  : > $W/files.new",
+    "  [ -n \"$DIRS\" ] && timeout 20 find $DIRS -xdev -maxdepth 8 -type f -printf '%T@ %s %p\\n' 2>/dev/null | sed 's/^\\([0-9]*\\)\\.[0-9]* /\\1 /' | sort -k3 > $W/files.new",
+    "  if [ $first -eq 1 ]; then log BASE \"$(wc -l < $W/files.new) files in the watched folders now\"",
+    "  else diff $W/files $W/files.new | grep '^>' | head -40 | while read a t s p; do log FILE \"new or changed: $p ($s bytes)\"; done; fi",
+    "  mv $W/files.new $W/files",
+    "  : > $W/open.new",
+    "  if [ \"$P\" != none ]; then for pid in $P; do ls -l /proc/$pid/fd 2>/dev/null | sed 's/.* -> //' | grep '^/' | grep -v -E '^/(dev|proc|sys)/'; done | sort -u > $W/open.new; fi",
+    "  if [ $first -eq 0 ]; then diff $W/open $W/open.new | grep '^>' | head -30 | while read a p; do log OPEN \"file now open: $p\"; done; fi",
+    "  mv $W/open.new $W/open",
+    "  first=0",
+    "  sleep 4",
+    "done",
+    "log STOP \"30 minutes passed\"",
+    "rm -f $PIDF"
+  ].join("\n") + "\n";
   INSPECT.nfstart = "mkdir -p /var/lib/webosbrew; echo " + btoa(WATCH) + " | base64 -d > " + NFSH + "; (sh " + NFSH + " >/dev/null 2>&1 &); sleep 3; echo 'Netflix Watch is running (30 min). Now open Netflix, pick a profile, play something, then come back here and open Netflix Watch: report.'; echo; tail -n 4 " + NFLOG;
   INSPECT.nfstop = "[ -f /tmp/joolay-nfwatch.pid ] && kill $(cat /tmp/joolay-nfwatch.pid) 2>/dev/null; rm -f /tmp/joolay-nfwatch.pid; echo \"$(date +%s) STOP stopped by you\" >> " + NFLOG + "; echo 'Netflix Watch stopped. Open Netflix Watch: report to read the log.'";
   INSPECT.nfreport = "test -f " + NFLOG + " || echo 'NOLOG'; tail -n 160 " + NFLOG + " 2>/dev/null; echo '--running:'; [ -f /tmp/joolay-nfwatch.pid ] && kill -0 $(cat /tmp/joolay-nfwatch.pid) 2>/dev/null && echo yes || echo no";
