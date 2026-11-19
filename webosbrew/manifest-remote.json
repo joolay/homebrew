@@ -1,0 +1,14 @@
+{
+  "id": "io.joolay.tvremote",
+  "version": "0.1.0",
+  "type": "web",
+  "title": "TV Remote",
+  "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-remote/largeIcon.png",
+  "sourceUrl": "https://github.com/joolay/homebrew",
+  "rootRequired": true,
+  "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvremote_0.1.0_all.ipk",
+  "ipkHash": {
+    "sha256": "2a9fa03739cda9725eea59d67bdb601f1449c35cb650ec08b7de8baf67b7ab40"
+  },
+  "ipkSize": 24276
+}

@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 5,
+    "count": 6,
     "maxPage": 1,
-    "itemsTotal": 5
+    "itemsTotal": 6
   },
   "packages": [
     {
@@ -50,6 +50,15 @@
       "pool": "main",
       "shortDescription": "Test: can a link open or play a video inside the Netflix app?",
       "description": "A small test app, separate from JoolzTV. Launches Netflix (and YouTube as a control) with different link styles so we can see which one opens or plays a title directly."
+    },
+    {
+      "id": "io.joolay.tvremote",
+      "title": "TV Remote",
+      "iconUri": "https://raw.githubusercontent.com/joolay/homebrew/main/app-remote/largeIcon.png",
+      "manifestUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/manifest-remote.json",
+      "pool": "main",
+      "shortDescription": "Connects this TV to the TV Remote app on your Umbrel, to see and control it from anywhere",
+      "description": "Runs a small agent on the TV that connects out to the TV Remote app on your Umbrel (pair with a 4-digit code). The Umbrel app shows the TV screen and sends remote keys, text and app launches, so nothing connects to the TV itself and the TV only works while someone is watching. Needs a rooted TV with Homebrew Channel."
     }
   ]
 }
