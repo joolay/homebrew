@@ -30,6 +30,8 @@ h1{margin:0 0 6px;font-size:44px}
   var cur = 0;
 
   var tests = [
+    { t: "Fixed: Stranger Things, title page", s: "TMDB tv 66732, Netflix 80057281, listed on Netflix South Africa. Ignores the typed ID.", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/title/80057281" }; } },
+    { t: "Fixed: Stranger Things, play", s: "contentTarget = https://www.netflix.com/watch/80057281. Ignores the typed ID.", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/watch/80057281" }; } },
     { t: "Netflix: just open the app", s: "launch id netflix, no parameters", id: "netflix", p: function () { return {}; } },
     { t: "Netflix: title page by link", s: "contentTarget = https://www.netflix.com/title/ID", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/title/" + vid }; } },
     { t: "Netflix: play by link", s: "contentTarget = https://www.netflix.com/watch/ID", id: "netflix", p: function () { return { contentTarget: "https://www.netflix.com/watch/" + vid }; } },
