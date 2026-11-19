@@ -6,13 +6,14 @@ let n = 0; const ok = (c, m) => { assert(c, m); console.log("ok   " + m); n++; }
 const man = (id, v, extra) => Object.assign({ id, version: v, title: id, rootRequired: false, ipkUrl: "https://x/" + id + "_" + v + ".ipk", ipkHash: { sha256: "AB".repeat(32) } }, extra || {});
 function world(installed, manifests, o) {
   o = o || {}; const calls = [], execs = [];
-  const feed = { packages: Object.keys(manifests).map(id => ({ id, title: id, manifestUrl: "https://x/m-" + id + ".json" })) };
+  const feed = { packages: Object.keys(manifests).filter(id => !o.own || o.own.indexOf(id) >= 0).map(id => ({ id, title: id, manifestUrl: "https://x/m-" + id + ".json" })) };
   const call = (uri, p) => { calls.push(uri.split("/").pop() + " " + JSON.stringify(p));
     if (/exec$/.test(uri)) { execs.push(p.command); return Promise.resolve({ returnValue: true, stdoutString: p.command === "id -u" ? "0\n" : /test -f/.test(p.command) ? (o.boot ? "yes\n" : "no\n") : "" }); }
     if (/listApps$/.test(uri)) return Promise.resolve({ apps: Object.keys(installed).map(id => ({ id, version: installed[id] })) });
     if (/install$/.test(uri)) { const id = Object.keys(manifests).filter(k => manifests[k].ipkUrl === p.ipkUrl)[0]; if (o.failInstall === id) return Promise.reject(new Error("install failed")); if (o.stuck !== id) installed[id] = manifests[id].version; return Promise.resolve({ finished: true }); }
     return Promise.reject(new Error("unexpected " + uri)); };
-  const getText = (u) => u === HB.FEED ? Promise.resolve(JSON.stringify(feed)) : Promise.resolve(JSON.stringify(manifests[/m-(.*)\.json/.exec(u)[1]]));
+  const other = o.other || { packages: [] };   // the second repo's feed (an app listed there is shown only when installed)
+  const getText = (u) => u === HB.FEED ? Promise.resolve(JSON.stringify(feed)) : u === HB.REPOS[1].url ? (o.otherFails ? Promise.reject(new Error("offline")) : Promise.resolve(JSON.stringify(other))) : Promise.resolve(JSON.stringify(manifests[/m-(.*)\.json/.exec(u)[1]]));
   const mem = {}; return { u: HB.create({ call, getText, store: { get: k => mem[k] || null, set: (k, v) => { mem[k] = v; } } }), calls, execs, installed };
 }
 (async () => {
@@ -35,6 +36,18 @@ function world(installed, manifests, o) {
   w = world({}, {}, { boot: true }); ok(await w.u.bootState() === true, "boot state reads the init.d file"); await w.u.setBoot(true, 12); ok(w.execs.some(e => /init\.d/.test(e) && /base64/.test(e)), "auto-update writes the init.d script");
   const script = Buffer.from(/echo (\S+) \|/.exec(w.execs.filter(e => /init\.d/.test(e) && /base64/.test(e))[0])[1], "base64").toString(); ok(script.indexOf("io.joolay.tvupdater") > 0 && /sleep 43200/.test(script) && /auto/.test(script), "the script launches the updater app with auto:true every N hours");
   await w.u.setBoot(false); ok(w.execs.some(e => /rm -f .*init\.d/.test(e)), "auto-update off removes the script");
+  // repos: apps are labelled with the repo they come from, other repos only show installed apps, and one bad repo does not stop the rest
+  const pkg = id => ({ id, title: id, manifestUrl: "https://x/m-" + id + ".json" });
+  w = world({ a: "1.0.0", z: "1.0.0" }, { a: man("a", "1.1.0"), b: man("b", "9.0.0"), z: man("z", "2.0.0"), y: man("y", "5.0.0") }, { own: ["a", "b"], other: { packages: [pkg("z"), pkg("y"), pkg("a")] } });
+  items = await w.u.check(); const by = Object.fromEntries(items.map(i => [i.id, i]));
+  ok(by.a.repo === "JoolzTV" && by.b.repo === "JoolzTV" && by.z.repo === "webOS Homebrew", "each app is labelled with the repo it comes from");
+  ok(by.z.state === "update" && !by.y, "an update from another repo is shown; an app that is not on the TV is not listed from other repos");
+  ok(items.filter(i => i.id === "a").length === 1, "an app listed in two repos belongs to the first one");
+  items = await w.u.run({}); ok(w.installed.z === "2.0.0" && w.installed.a === "1.1.0" && !w.installed.y, "run: updates from every repo, installed apps only");
+  w = world({ a: "1.0.0" }, { a: man("a", "1.1.0") }, { otherFails: true }); items = await w.u.check();
+  ok(items.some(i => i.id === "a" && i.state === "update") && items.some(i => i.state === "error" && i.repo === "webOS Homebrew" && /offline/.test(i.error)), "a repo that cannot be read shows one error row and the others still work");
+  w = world({ a: "1.0.0" }, { a: man("a", "1.1.0") }); w.u.setConfig({ repos: [{ id: "x", name: "Mine", url: HB.FEED, all: true }] }); items = await w.u.check();
+  ok(items.length === 1 && items[0].repo === "Mine", "the list of repos can be changed");
   ok(fs.readFileSync(path.join(__dirname, "../hb-updater.js"), "utf8") === fs.readFileSync(path.join(__dirname, "../../app-flix/hb-updater.js"), "utf8"), "the launcher carries the same updater code");
   console.log("ALL PASSED (" + n + ")");
 })().catch(e => { console.log("FAIL", e.stack); process.exit(1); });

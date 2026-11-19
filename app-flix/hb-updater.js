@@ -10,6 +10,13 @@
 (function (root) {
   "use strict";
   var FEED = "https://raw.githubusercontent.com/joolay/homebrew/main/webosbrew/apps.json";
+  // Repos the TV Updater reads, in this order (an app listed in two repos belongs to the first). `all` repos also list apps that are not on the TV;
+  // the others only show apps that are installed, so a big public repo does not flood the screen. Change them with setConfig({ repos: [...] }).
+  // The webOS Homebrew address is not verified yet: if it is wrong that repo shows "Could not read this repo" and everything else still works.
+  var REPOS = [
+    { id: "joolay", name: "JoolzTV", url: FEED, all: true },
+    { id: "webosbrew", name: "webOS Homebrew", url: "https://repo.webosbrew.org/api/apps.json" }
+  ];
   var HBC = "luna://org.webosbrew.hbchannel.service/";
   var AM = "luna://com.webos.applicationManager/";
   var SELF = "io.joolay.tvupdater";
@@ -94,7 +101,10 @@
 
     function config() {
       var c = store.get("jtv.updcfg") || {};
-      return { feedUrl: typeof c.feedUrl === "string" && /^https:\/\//.test(c.feedUrl) ? c.feedUrl : FEED, ignore: Array.isArray(c.ignore) ? c.ignore : [] };
+      var repos = (Array.isArray(c.repos) ? c.repos : REPOS).filter(function (r) { return r && typeof r.url === "string" && /^https:\/\//.test(r.url); })
+        .map(function (r, i) { return { id: String(r.id || "r" + i), name: String(r.name || r.url.replace(/^https:\/\/([^\/]+).*$/, "$1")), url: r.url, all: !!r.all }; });
+      if (!Array.isArray(c.repos) && typeof c.feedUrl === "string" && /^https:\/\//.test(c.feedUrl)) repos[0].url = c.feedUrl;   // older setting: the first repo's address
+      return { repos: repos, ignore: Array.isArray(c.ignore) ? c.ignore : [] };
     }
     function setConfig(patch) {
       var c = config(); for (var k in patch) c[k] = patch[k];
@@ -112,20 +122,25 @@
       return exec("id -u").then(function (s) { return { ok: true, root: String(s).trim() === "0" }; }, function (e) { return { ok: false, root: false, error: e.message }; });
     }
 
-    // The feed lists apps; each has a manifest with its version and IPK. Only apps already installed are ever touched.
+    // Each repo's feed lists apps; each has a manifest with its version and IPK. Only apps already installed are ever touched.
+    // A repo that cannot be read becomes one "error" row of its own and the other repos carry on.
     function plan(o) {
       o = o || {};
       var cfg = config();
-      return getJson(cfg.feedUrl).then(function (feed) {
-        var pk = (feed.packages || []).filter(function (p) { return p && p.id && p.manifestUrl && (!o.only || o.only.indexOf(p.id) >= 0); });
-        return Promise.all(pk.map(function (p) {
-          return getJson(p.manifestUrl).then(function (m) { return { id: p.id, title: p.title || m.title || p.id, manifest: m, manifestUrl: p.manifestUrl }; })
-            .catch(function (e) { return { id: p.id, title: p.title || p.id, error: e.message }; });
-        }));
-      }).then(function (list) {
+      return Promise.all(cfg.repos.map(function (r) {
+        return getJson(r.url).then(function (feed) {
+          var pk = (feed.packages || []).filter(function (p) { return p && p.id && p.manifestUrl && (!o.only || o.only.indexOf(p.id) >= 0) && (r.all || o.installed[p.id]); });
+          return Promise.all(pk.map(function (p) {
+            return getJson(p.manifestUrl).then(function (m) { return { repo: r.name, id: p.id, title: p.title || m.title || p.id, manifest: m, manifestUrl: p.manifestUrl }; })
+              .catch(function (e) { return { repo: r.name, id: p.id, title: p.title || p.id, error: e.message }; });
+          }));
+        }, function (e) { return [{ repo: r.name, id: "repo:" + r.id, title: "Could not read this repo", error: e.message, repoError: true }]; });
+      })).then(function (lists) {
+        var seen = {}, list = [];
+        lists.forEach(function (l) { l.forEach(function (it) { if (it.repoError || !seen[it.id]) { seen[it.id] = true; list.push(it); } }); });   // an app in two repos belongs to the first
         return list.map(function (it) {
-          var have = o.installed[it.id] || null;
-          var out = { id: it.id, title: it.title, installed: have, available: it.manifest ? it.manifest.version : null, state: "" };
+          var have = it.repoError ? null : (o.installed[it.id] || null);
+          var out = { id: it.id, title: it.title, repo: it.repo, installed: have, available: it.manifest ? it.manifest.version : null, state: "" };
           if (it.error) { out.state = "error"; out.error = it.error; return out; }
           if (!have) out.state = "not-installed";
           else if (cfg.ignore.indexOf(it.id) >= 0) out.state = "ignored";
@@ -200,6 +215,6 @@
     return { check: check, run: run, config: config, setConfig: setConfig, setBoot: setBoot, bootState: bootState, hbcState: hbcState, log: log, logs: function () { return logs.slice(); }, exec: exec };
   }
 
-  var api = { create: create, compareVersions: compareVersions, FEED: FEED, SELF: SELF, HBC: HBC };
+  var api = { create: create, compareVersions: compareVersions, FEED: FEED, REPOS: REPOS, SELF: SELF, HBC: HBC };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.HBUpdater = api;
 })(typeof window !== "undefined" ? window : this);

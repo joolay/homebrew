@@ -11,6 +11,7 @@ h1{margin:0 0 6px;font-size:52px}
 button{font:inherit;color:#fff;background:rgba(255,255,255,.12);border:2px solid transparent;border-radius:16px;padding:14px 30px;margin-right:18px;outline:0}
 button:focus{border-color:#4d9bff;background:rgba(77,155,255,.35)}
 button[disabled]{opacity:.45}
+.grp{margin:26px 0 10px;display:flex;align-items:baseline}.grp .gn{font-size:34px;font-weight:600;flex:1}.grp .gm{color:#9aa3b2;font-size:24px}.grp .gu{color:#6ee7a0;margin-left:20px;font-size:24px}
 .row{display:flex;align-items:center;padding:16px 24px;margin-bottom:10px;border-radius:16px;background:rgba(255,255,255,.07)}
 .row .t{flex:1}.row .v{width:380px;color:#9aa3b2}.row .s{width:260px;text-align:right}
 .update,.updated{color:#6ee7a0}.failed,.error{color:#ff7b7b}.needs-root,.ignored,.not-installed{color:#9aa3b2}
@@ -18,7 +19,7 @@ button[disabled]{opacity:.45}
 #log{font:20px/1.4 monospace;color:#7d8696;white-space:pre-wrap;margin-top:24px;max-height:200px;overflow:hidden}
 </style></head><body>
 <h1>TV Updater</h1>
-<div class="sub">Keeps your Homebrew apps up to date. Only apps already on this TV are updated.</div>
+<div class="sub">Keeps your Homebrew apps up to date, grouped by the repo they come from. Only apps already on this TV are updated.</div>
 <div class="bar">
   <button id="check">Check now</button><button id="run">Update all</button><button id="auto">Auto-update: …</button>
 </div>
@@ -36,13 +37,27 @@ button[disabled]{opacity:.45}
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function showLog() { $("log").textContent = U.logs().slice(-6).join("\n"); }
-  function render(list) {
+  function row(x) {
     var h = "";
-    for (var i = 0; i < (list || []).length; i++) {
-      var x = list[i];
+    {
       h += '<div class="row"><div class="t">' + esc(x.title) + '</div><div class="v">' + esc(x.installed || "–") + (x.available && x.available !== x.installed ? " → " + esc(x.available) : "") +
         '</div><div class="s ' + esc(x.state) + '">' + esc(LABEL[x.state] || x.state) + "</div></div>";
       if (x.error) h += '<div class="failed" style="margin:-4px 0 10px 24px;font-size:22px">' + esc(x.error) + "</div>";
+    }
+    return h;
+  }
+  // Apps are grouped by the repo they come from (the order of the repos, apps with an update first inside each).
+  function render(list) {
+    var order = [], groups = {}, i;
+    list = list || [];
+    for (i = 0; i < list.length; i++) { var r = list[i].repo || "Other"; if (!groups[r]) { groups[r] = []; order.push(r); } groups[r].push(list[i]); }
+    var h = "";
+    for (i = 0; i < order.length; i++) {
+      var g = groups[order[i]], u = 0, n = 0, j;
+      g.sort(function (a, b) { return (b.state === "update") - (a.state === "update"); });
+      for (j = 0; j < g.length; j++) { if (g[j].state === "update") u++; if (g[j].state !== "error" || g[j].available) n++; }
+      h += '<div class="grp"><span class="gn">' + esc(order[i]) + '</span><span class="gm">' + n + (n === 1 ? " app" : " apps") + '</span>' + (u ? '<span class="gu">' + u + (u === 1 ? " update" : " updates") + "</span>" : "") + "</div>";
+      for (j = 0; j < g.length; j++) h += row(g[j]);
     }
     $("list").innerHTML = h;
   }
