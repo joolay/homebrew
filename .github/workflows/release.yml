@@ -8,10 +8,10 @@ on:
       app:
         description: 'Which app to release (version comes from its appinfo.json)'
         type: choice
-        options: [both, launcher, updater, tailscale, cctv, linktest]   # both = every app; an app whose version is already built is left as it is
+        options: [both, launcher, updater, tailscale, cctv, linktest, remote]   # both = every app; an app whose version is already built is left as it is
         default: both
   push:
-    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*', 'linktest-v*']
+    tags: ['v*', 'updater-v*', 'tailscale-v*', 'cctv-v*', 'linktest-v*', 'remote-v*']
 permissions:
   contents: write
 concurrency: release
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm i -g @webos-tools/cli@3.2.6
-      - run: node app-updater/test/test.js && node app-flix/test-launcher.js && node app-tailscale-service/test/test.js
+      - run: node app-updater/test/test.js && node app-flix/test-launcher.js && node app-tailscale-service/test/test.js && node app-remote/test/test.js
       - name: Build and publish
         env:
           EVENT: ${{ github.event_name }}
@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           RAW="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main"
           WHICH=both
-          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; linktest-v*) WHICH=linktest;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
+          if [ "$EVENT" = "push" ]; then case "$REF_NAME" in updater-v*) WHICH=updater;; tailscale-v*) WHICH=tailscale;; cctv-v*) WHICH=cctv;; linktest-v*) WHICH=linktest;; remote-v*) WHICH=remote;; *) WHICH=launcher;; esac; else WHICH="${APP_INPUT:-both}"; fi
           mkdir -p dist
           publish() { # id title dir-or-dirs manifest-file rootRequired iconpath
             ID=$1; TITLE=$2; MAN=$3; ROOT=$4; ICON=$5; shift 5
@@ -75,6 +75,10 @@ jobs:
           if [ "$WHICH" = linktest ] || [ "$WHICH" = both ]; then
             publish io.joolay.tvlinktest "Link Test" manifest-linktest.json false app-linktest/largeIcon.png app-linktest
             jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvlinktest") then . else .packages += [{id:"io.joolay.tvlinktest",title:"Link Test",iconUri:($raw+"/app-linktest/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-linktest.json"),pool:"main",shortDescription:"Test: can a link open or play a video inside the Netflix app?",description:"A small test app, separate from JoolzTV. Launches Netflix (and YouTube as a control) with different link styles so we can see which one opens or plays a title directly."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
+          fi
+          if [ "$WHICH" = remote ] || [ "$WHICH" = both ]; then
+            publish io.joolay.tvremote "TV Remote" manifest-remote.json true app-remote/largeIcon.png app-remote
+            jq --arg raw "$RAW" 'if any(.packages[]; .id=="io.joolay.tvremote") then . else .packages += [{id:"io.joolay.tvremote",title:"TV Remote",iconUri:($raw+"/app-remote/largeIcon.png"),manifestUrl:($raw+"/webosbrew/manifest-remote.json"),pool:"main",shortDescription:"Connects this TV to the TV Remote app on your Umbrel, to see and control it from anywhere",description:"Runs a small agent on the TV that connects out to the TV Remote app on your Umbrel (pair with a 4-digit code). The Umbrel app shows the TV screen and sends remote keys, text and app launches, so nothing connects to the TV itself and the TV only works while someone is watching. Needs a rooted TV with Homebrew Channel."}] end | .paging.itemsTotal=(.packages|length) | .paging.count=(.packages|length)' webosbrew/apps.json > apps.tmp && mv apps.tmp webosbrew/apps.json
           fi
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dist webosbrew

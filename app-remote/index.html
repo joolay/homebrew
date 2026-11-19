@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>TV Remote</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0d12;color:#e8ecf4;font:30px/1.35 sans-serif}
+#w{padding:44px 80px}
+h1{margin:0 0 6px;font-size:50px}
+.sub{color:#8d97ab;font-size:25px;margin-bottom:18px}
+.card{background:#141926;border-radius:18px;padding:18px 30px;margin:12px 0}
+.row{margin:0 0 4px}
+label{display:inline-block;width:330px;color:#8d97ab;font-size:26px}
+input{font:inherit;color:#e8ecf4;background:#1d2332;border:3px solid transparent;border-radius:12px;padding:10px 16px;width:560px}
+button{font:inherit;color:#e8ecf4;background:#1d2332;border:3px solid transparent;border-radius:14px;padding:12px 26px;margin:6px 12px 6px 0}
+input:focus,button:focus{border-color:#7cc4ff;background:#27304a;outline:none}
+.ok{color:#58d68d}.bad{color:#ff7b72}
+#msg{color:#8d97ab;font-size:24px;margin-top:10px;min-height:34px}
+</style></head><body><div id="w">
+<h1>TV Remote</h1>
+<div class="sub">Connects this TV to the TV Remote app on your Umbrel, so you can see and control it from anywhere. Nothing connects to the TV itself.</div>
+<div class="card" id="state">Checking…</div>
+<div class="card" id="pairCard">
+  <div class="row"><label for="addr">Umbrel address</label><input id="addr" placeholder="192.168.1.50 or umbrel.local" autocomplete="off"></div>
+  <div class="row"><label for="code">4-digit code</label><input id="code" placeholder="from the Umbrel app" maxlength="4" autocomplete="off"></div>
+  <div class="row"><label for="name">Name of this TV</label><input id="name" value="LG TV" maxlength="40" autocomplete="off"></div>
+  <button id="pair">Pair with Umbrel</button><button id="unpair">Forget Umbrel</button>
+  <div class="sub" style="margin:6px 0 0;font-size:22px">In the Umbrel app press Add TV: it shows the code (valid 10 minutes). The address is the one you open Umbrel with, no http://. Tailscale addresses work too.</div>
+</div>
+<div class="card"><button id="toggle">…</button><button id="boot">Start at boot: …</button></div>
+<div id="msg"></div>
+</div>
+<script>
+(function () {
+  var $ = function (i) { return document.getElementById(i); };
+  var HB = "luna://org.webosbrew.hbchannel.service/exec";
+  var APP = "/media/developer/apps/usr/palm/applications/io.joolay.tvremote";
+  var DIR = "/var/lib/joolay-tvremote", BOOT = "/var/lib/webosbrew/init.d/91-joolay-tvremote";
+  var NODE = "$(command -v node || echo /usr/bin/node)", AGENT = NODE + " " + APP + "/agent/agent.js";
+  var running = false, boot = false, st = {}, busy = false;
+
+  function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function run(script, cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (m) { var j; try { j = JSON.parse(m); } catch (e) { j = {}; } cb(j.returnValue === false ? (j.errorText || "failed") : null, String(j.stdoutString || j.stdout || "") + String(j.stderrString || j.stderr || "")); };
+      b.call(HB, JSON.stringify({ command: "echo " + b64(script) + " | base64 -d | sh" }));
+    } catch (e) { cb("This only works on the TV (no webOS service bridge here)", ""); }
+  }
+  function say(t, cls) { $("msg").className = cls || ""; $("msg").textContent = t || ""; }
+
+  var PID = DIR + "/agent.pid";
+  var ALIVE = "[ -f " + PID + " ] && kill -0 $(cat " + PID + ") 2>/dev/null";
+  var START = "mkdir -p " + DIR + " && chmod 700 " + DIR + "; if " + ALIVE + "; then echo RUN; else (nohup " + AGENT + " </dev/null >/tmp/joolay-tvremote.log 2>&1 &); sleep 3; fi; if " + ALIVE + "; then echo RUN; else echo STOP; tail -n 3 /tmp/joolay-tvremote.log; fi";
+  var STOP = "kill $(cat " + PID + " 2>/dev/null) 2>/dev/null; rm -f " + PID + "; echo STOP";
+  var STATUS = "mkdir -p " + DIR + " && chmod 700 " + DIR + "; if " + ALIVE + "; then echo RUN; else echo STOP; fi; test -f " + BOOT + " && echo BOOT || echo NOBOOT; " + AGENT + " status 2>&1 | head -n 1";
+  function bootScript() { return "#!/bin/sh\n# TV Remote: written by the TV Remote app, removed by its switch\n( sleep 40; mkdir -p " + DIR + "; nohup " + AGENT + " </dev/null >/tmp/joolay-tvremote.log 2>&1 & ) &\n"; }
+
+  function paint() {
+    $("toggle").textContent = running ? "Stop" : "Start";
+    $("boot").textContent = "Start at boot: " + (boot ? "On" : "Off");
+    var h;
+    if (!st.paired) h = '<span class="bad">Not paired.</span> Enter the Umbrel address and the 4-digit code below.';
+    else if (!running) h = 'Paired with <b>' + st.umbrel + '</b>. <span class="bad">Stopped.</span>';
+    else if (st.connected) h = 'Paired with <b>' + st.umbrel + '</b>. <span class="ok">Connected.</span>';
+    else h = 'Paired with <b>' + st.umbrel + '</b>. <span class="bad">Not connected</span>' + (st.error ? ': ' + st.error : '') + '.';
+    $("state").innerHTML = h;
+    if (st.umbrel && !$("addr").value) $("addr").value = st.umbrel.replace(/:3905$/, "");
+  }
+  function refresh(cb) {
+    run(STATUS, function (err, out) {
+      if (err) { say(err, "bad"); return cb && cb(); }
+      running = /^RUN/m.test(out); boot = /^BOOT/m.test(out); st = {};
+      var ls = String(out).split("\n"); for (var i = 0; i < ls.length; i++) if (ls[i].charAt(0) === "{") { try { st = JSON.parse(ls[i]); } catch (e) {} }
+      paint(); cb && cb();
+    });
+  }
+  function act(fn) { if (busy) return; busy = true; fn(function () { busy = false; }); }
+
+  $("pair").onclick = function () {
+    var addr = $("addr").value.trim(), code = $("code").value.trim(), name = $("name").value.trim() || "LG TV";
+    if (!/^[A-Za-z0-9.:\-]{1,200}$/.test(addr.replace(/^https?:\/\//, "").replace(/\/$/, ""))) return say("The Umbrel address does not look right.", "bad");
+    if (!/^\d{4}$/.test(code)) return say("The code is 4 digits.", "bad");
+    name = name.replace(/[^A-Za-z0-9 ._-]/g, "") || "LG TV";
+    addr = addr.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    act(function (done) {
+      say("Pairing…");
+      run(AGENT + " pair '" + addr + "' '" + code + "' '" + name + "' 2>&1 | head -n 1", function (err, out) {
+        var j = {}; try { j = JSON.parse(String(out).trim().split("\n").pop()); } catch (e) {}
+        if (err || !j.ok) { say("Could not pair: " + (err || j.error || String(out).slice(0, 120)), "bad"); return done(); }
+        $("code").value = "";
+        run(STOP + "; " + START, function () { setTimeout(function () { refresh(function () { say(st.connected ? "Paired and connected. Open the TV Remote page in your Umbrel." : "Paired. Connecting…", st.connected ? "ok" : ""); done(); }); }, 1000); });
+      });
+    });
+  };
+  $("unpair").onclick = function () { act(function (done) { run(STOP + "; " + AGENT + " unpair", function () { refresh(function () { say("This TV forgot the Umbrel. Remove it in the Umbrel app too.", "ok"); done(); }); }); }); };
+  $("toggle").onclick = function () {
+    act(function (done) {
+      say(running ? "Stopping…" : "Starting…");
+      run(running ? STOP : START, function (err, out) { setTimeout(function () { refresh(function () { say(err || (running ? "Started." : (/STOP\s+\S/.test(out) ? "Could not start: " + out.replace(/\s+/g, " ").slice(0, 150) : "Stopped.")), err ? "bad" : ""); done(); }); }, 500); });
+    });
+  };
+  $("boot").onclick = function () {
+    act(function (done) {
+      run(boot ? "rm -f " + BOOT + " && echo ok" : "mkdir -p /var/lib/webosbrew/init.d && echo " + b64(bootScript()) + " | base64 -d > " + BOOT + " && chmod 755 " + BOOT + " && echo ok", function (err) {
+        refresh(function () { say(err || (boot ? "TV Remote will connect by itself when the TV turns on." : "TV Remote will not start at boot."), err ? "bad" : "ok"); done(); });
+      });
+    });
+  };
+  var order = [$("addr"), $("code"), $("name"), $("pair"), $("unpair"), $("toggle"), $("boot")], rows = [[0], [1], [2], [3, 4], [5, 6]], cur = [0, 0];
+  function at() { var a = document.activeElement; for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) if (order[rows[r][c]] === a) return [r, c]; return [0, 0]; }
+  function go(r, c) { r = Math.max(0, Math.min(rows.length - 1, r)); c = Math.max(0, Math.min(rows[r].length - 1, c)); order[rows[r][c]].focus(); }
+  document.addEventListener("keydown", function (e) {
+    var k = e.keyCode, p = at(), inInput = document.activeElement && document.activeElement.tagName === "INPUT";
+    if (k === 38) { go(p[0] - 1, p[1]); e.preventDefault(); } else if (k === 40) { go(p[0] + 1, p[1]); e.preventDefault(); }
+    else if (k === 37 && !inInput) { go(p[0], p[1] - 1); e.preventDefault(); } else if (k === 39 && !inInput) { go(p[0], p[1] + 1); e.preventDefault(); }
+    else if (k === 461 || k === 27) { if (inInput) { document.activeElement.blur(); go(p[0], p[1]); } else { try { window.close(); } catch (x) {} } }
+  });
+  refresh(function () { go(st.paired ? 4 : 0, 0); setInterval(function () { if (!busy) refresh(); }, 5000); });
+})();
+</script></body></html>
