@@ -71,6 +71,15 @@
           "sha256": "fa1155133d9c297806e5e5ed80beaed46d2209086dd1dea8c0529dbcf63daf6c"
         },
         "ipkSize": 37778
+      },
+      {
+        "version": "2.2.1",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvupdater_2.2.1_all.ipk",
+        "ipkHash": {
+          "sha256": "8d71ceea13c21cc49ec33209b8ac7af457ee1d815775454cd2a63a61b55faae8"
+        },
+        "ipkSize": 38378
       }
     ],
     "io.stremio.flix.tv": [
@@ -130,6 +139,15 @@
           "sha256": "bc5dc42d8834fc2da80828d8743de9fb2723ee889cc5eafcf8b4f0399de1d931"
         },
         "ipkSize": 32512
+      },
+      {
+        "version": "2.1.6",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.stremio.flix.tv_2.1.6_all.ipk",
+        "ipkHash": {
+          "sha256": "6fe79e91109efdb44fa639638d29afd5b7a116360512a8e8ccf845f181843a98"
+        },
+        "ipkSize": 32768
       }
     ]
   }
