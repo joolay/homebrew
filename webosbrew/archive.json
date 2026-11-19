@@ -222,6 +222,15 @@
           "sha256": "a414e8ba68cb28f712ce9b51298b5772868293175014808ccd198a98feb0a762"
         },
         "ipkSize": 20714
+      },
+      {
+        "version": "0.2.2",
+        "date": "2026-11-19",
+        "ipkUrl": "https://raw.githubusercontent.com/joolay/homebrew/main/dist/io.joolay.tvlinktest_0.2.2_all.ipk",
+        "ipkHash": {
+          "sha256": "1fdaac1524d226644d47a4d953b88ed7b9cc39f10b6ac9b55038e5ec02fc5165"
+        },
+        "ipkSize": 21092
       }
     ]
   }
