@@ -65,10 +65,11 @@ h1{margin:0 0 6px;font-size:44px}
 
   // Direct call first. If webOS refuses it, the same call is made as root through Homebrew Channel's service.
   // Short, limited searches only: a find over the whole TV can run for minutes. Scripts go through base64 so quotes cannot break them.
-  var ROOTS = "/usr/palm /usr/share /media/cryptofs/apps /var/palm /mnt/otycrypt /home/root /var/lib /etc";
+  // No searching the whole disk (it timed out): ask webOS where Netflix lives, then look only there.
+  var FIND = 'P=$(luna-send-pub -n 1 -f luna://com.webos.applicationManager/getAppInfo \'{"id":"netflix"}\' 2>&1 | sed -n \'s/.*"folderPath" *: *"\\([^"]*\\)".*/\\1/p\' | head -1); ';
   var INSPECT = {
-    files: 'echo "searching (read only)..."; for d in $(timeout 20 find ' + ROOTS + ' -maxdepth 5 -type d -iname "*netflix*" 2>/dev/null | head -10); do echo "== $d"; find "$d" -maxdepth 2 -type f 2>/dev/null | head -20; echo "-- mentions profile:"; timeout 10 grep -rIil profile "$d" 2>/dev/null | head -8; done; echo "done"',
-    manifest: 'for f in $(timeout 20 find ' + ROOTS + ' -maxdepth 5 -path "*etflix*" -name appinfo.json 2>/dev/null | head -3); do echo "== $f"; head -c 2500 "$f"; echo; done; echo done'
+    files: FIND + 'echo "Netflix app folder: ${P:-not reported}"; if [ -n "$P" ]; then ls -la "$P" 2>&1 | head -30; echo "-- files mentioning profile:"; timeout 15 grep -rIil profile "$P" 2>/dev/null | head -10; fi; echo "-- possible data folders:"; ls -d /var/palm/data/*etflix* /var/palm/jail/*etflix* /media/cryptofs/apps/usr/palm/data/*etflix* /home/root/.local/share/*etflix* /var/luna/preferences/*etflix* 2>/dev/null; echo done',
+    manifest: FIND + 'echo "Netflix app folder: ${P:-not reported}"; [ -n "$P" ] && head -c 2500 "$P/appinfo.json"; echo; echo done'
   };
   function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
   function inspect(test) {
